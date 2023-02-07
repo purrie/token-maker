@@ -1,19 +1,23 @@
-use iced::widget::{button, column as col, container, row, Row};
+use std::path::PathBuf;
+
+use iced::widget::{button, column as col, container, row, tooltip, Row};
 use iced::{executor, Application, Command, Element, Length, Renderer, Theme};
 
-use crate::file_browser::{Browser, BrowserOperation, BrowsingResult};
+use crate::file_browser::{Browser, BrowserOperation, BrowsingResult, Target};
 use crate::workspace::{IndexedWorkspaceMessage, Workspace};
 
 #[derive(Default)]
 pub struct TokenMaker {
     operation: Mode,
     file: Browser,
+    output_folder: PathBuf,
     workspaces: Vec<Workspace>,
 }
 
 #[derive(Debug, Clone)]
 pub enum Message {
-    OpenFileBrowser,
+    LookForImage,
+    LookForOutputFolder,
     FileBrowser(BrowserOperation),
     Workspace(IndexedWorkspaceMessage),
 }
@@ -38,10 +42,9 @@ impl Application for TokenMaker {
     fn new(_flags: Self::Flags) -> (Self, Command<Self::Message>) {
         (
             {
-                let mut s = Self {
+                let s = Self {
                     ..Default::default()
                 };
-                s.file.set_filter("png");
                 s
             },
             Command::none(),
@@ -54,8 +57,15 @@ impl Application for TokenMaker {
 
     fn update(&mut self, message: Self::Message) -> Command<Self::Message> {
         match message {
-            Message::OpenFileBrowser => {
+            Message::LookForImage => {
                 self.operation = Mode::FileBrowser;
+                self.file.set_target(Target::Filtered("png".into()));
+                self.file.refresh_path().unwrap();
+                Command::none()
+            }
+            Message::LookForOutputFolder => {
+                self.operation = Mode::FileBrowser;
+                self.file.set_target(Target::Directory);
                 self.file.refresh_path().unwrap();
                 Command::none()
             }
@@ -65,11 +75,16 @@ impl Application for TokenMaker {
                         BrowsingResult::Pending => {}
                         BrowsingResult::Canceled => {}
                         BrowsingResult::Done(path) => {
-                            if let Ok(img) = image::open(&path) {
-                                let name = path.file_name().unwrap().to_string_lossy().to_string();
-                                let new_workspace =
-                                    Workspace::new(self.workspaces.len(), name, img);
-                                self.workspaces.push(new_workspace);
+                            if path.is_file() {
+                                if let Ok(img) = image::open(&path) {
+                                    let name =
+                                        path.file_name().unwrap().to_string_lossy().to_string();
+                                    let new_workspace =
+                                        Workspace::new(self.workspaces.len(), name, img);
+                                    self.workspaces.push(new_workspace);
+                                }
+                            } else {
+                                self.output_folder = path;
                             }
                             self.operation = Mode::Workspace;
                         }
@@ -108,10 +123,18 @@ impl Application for TokenMaker {
 
 impl TokenMaker {
     fn top_bar(&self) -> Element<Message, Renderer> {
-        row![button("add"), button("remove")]
-            .width(Length::Fill)
-            .height(Length::Shrink)
-            .into()
+        row![
+            button("add"),
+            button("remove"),
+            tooltip(
+                button("Set Output Folder").on_press(Message::LookForOutputFolder),
+                format!("Current output: {}", self.output_folder.to_string_lossy()),
+                tooltip::Position::Right
+            )
+        ]
+        .width(Length::Fill)
+        .height(Length::Shrink)
+        .into()
     }
     fn workspace_view(&self) -> Row<Message, Renderer> {
         Row::with_children(self.workspaces.iter().fold(Vec::new(), |mut c, x| {
@@ -122,7 +145,7 @@ impl TokenMaker {
         .height(Length::Fill)
     }
     fn workspace_add(&self) -> Element<Message, Renderer> {
-        col![button("Open new file").on_press(Message::OpenFileBrowser)]
+        col![button("Open new file").on_press(Message::LookForImage)]
             .height(Length::Fill)
             .width(Length::Fill)
             .into()

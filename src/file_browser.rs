@@ -7,7 +7,7 @@ pub struct Browser {
     path: PathBuf,
     selected: Option<PathBuf>,
     dir: Vec<PathBuf>,
-    filter: Option<String>,
+    target: Target,
 }
 
 #[derive(Debug, Clone)]
@@ -25,13 +25,15 @@ pub enum BrowsingResult {
     Done(PathBuf),
 }
 
+pub enum Target {
+    File,
+    Filtered(String),
+    Directory,
+}
+
 impl Browser {
-    pub fn set_filter(&mut self, filter: &str) {
-        if filter.len() == 0 {
-            self.filter = None;
-        } else {
-            self.filter = Some(String::from(filter));
-        }
+    pub fn set_target(&mut self, target: Target) {
+        self.target = target;
     }
     pub fn refresh_path(&mut self) -> Result<(), std::io::Error> {
         self.dir.clear();
@@ -39,17 +41,11 @@ impl Browser {
         for f in dir {
             if let Ok(f) = f {
                 let path = f.path();
-                if path.is_file() && self.filter.is_some() {
-                    let f = self.filter.as_ref().unwrap();
-                    if let Some(ext) = path.extension().and_then(|x| x.to_str()) {
-                        if ext != f {
-                            continue;
-                        }
-                    } else {
-                        continue;
-                    }
+                match &self.target {
+                    Target::Filtered(f) if !is_filter_match(&f, &path) && path.is_file() => continue,
+                    Target::Directory if path.is_file() => continue,
+                    _ => self.dir.push(path),
                 }
-                self.dir.push(path);
             }
         }
 
@@ -88,19 +84,17 @@ impl Browser {
                 Ok(BrowsingResult::Canceled)
             }
             BrowserOperation::Accept => {
-                if let Some(s) = &self.selected {
-                    if s.is_file() {
-                        Ok(BrowsingResult::Done(s.clone()))
-                    } else {
-                        Ok(BrowsingResult::Pending)
-                    }
-                } else {
-                    Ok(BrowsingResult::Pending)
+                match (&self.selected, &self.target) {
+                    (Some(p), Target::File) if p.is_file() => Ok(BrowsingResult::Done(p.clone())),
+                    (Some(p), Target::Filtered(_)) => Ok(BrowsingResult::Done(p.clone())),
+                    (_, Target::Directory) => Ok(BrowsingResult::Done(self.path.clone())),
+                    _ => Ok(BrowsingResult::Pending)
                 }
             }
         }
     }
     pub fn view_raw(&self) -> Container<BrowserOperation, Renderer> {
+        // calculating file list widgets
         let mut file_list = Column::new();
         for x in self.dir.iter() {
             if let Some(name) = x.file_name().and_then(|x| x.to_str()) {
@@ -131,10 +125,23 @@ impl Browser {
                 file_list = file_list.push(butt);
             }
         }
+        // calculating the toolbar widgets
         let mut move_up = button("..");
         if self.path.parent().is_some() {
             move_up = move_up.on_press(BrowserOperation::MoveUp);
         }
+        let accept = match (&self.target, &self.selected) {
+            (Target::File, Some(p)) if p.is_file() => {
+                button("Accept").on_press(BrowserOperation::Accept)
+            }
+            (Target::Filtered(filter), Some(p)) if is_filter_match(&filter, &p) => {
+                button("Accept").on_press(BrowserOperation::Accept)
+            }
+            (Target::Directory, _) => {
+                button("Accept").on_press(BrowserOperation::Accept)
+            }
+            _ => button("Accept"),
+        };
 
         let ui = col![
             row![
@@ -142,7 +149,8 @@ impl Browser {
                 text("|"),
                 move_up,
                 text("|"),
-                text(format!("Directory: {}", self.path.to_string_lossy()))
+                text(format!("Directory: {}", self.path.to_string_lossy())),
+                accept
             ]
             .height(Length::Shrink)
             .width(Length::Fill),
@@ -158,6 +166,13 @@ impl Browser {
     }
 }
 
+fn is_filter_match(filter: &str, path: &PathBuf) -> bool {
+    path.extension()
+        .and_then(|x| x.to_str())
+        .and_then(|x| if x == filter { Some(()) } else { None })
+        .is_some()
+}
+
 impl Default for Browser {
     fn default() -> Self {
         let path = match std::env::var("HOME") {
@@ -167,8 +182,8 @@ impl Default for Browser {
         Self {
             path,
             selected: None,
-            filter: None,
             dir: Vec::new(),
+            target: Target::File,
         }
     }
 }
