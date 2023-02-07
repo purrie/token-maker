@@ -1,0 +1,4 @@
+#+title: Token Maker
+
+* About
+Goal of this project is to create a fully functional program for making tokens, cards, figurines and similar art for use in TTRPG context.
