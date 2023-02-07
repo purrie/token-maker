@@ -1,7 +1,7 @@
 use std::path::PathBuf;
 
-use iced::widget::{button, column as col, container, row, tooltip, Row};
-use iced::{executor, Application, Command, Element, Length, Renderer, Theme};
+use iced::widget::{button, column as col, container, row, tooltip, vertical_space, Row};
+use iced::{executor, Alignment, Application, Command, Element, Length, Renderer, Theme};
 
 use crate::file_browser::{Browser, BrowserOperation, BrowsingResult, Target};
 use crate::workspace::{IndexedWorkspaceMessage, Workspace};
@@ -86,7 +86,11 @@ impl Application for TokenMaker {
                             } else {
                                 self.output_folder = path;
                             }
-                            self.operation = Mode::Workspace;
+                            if self.workspaces.len() > 0 {
+                                self.operation = Mode::Workspace;
+                            } else {
+                                self.operation = Mode::CreateWorkspace;
+                            }
                         }
                     }
                 }
@@ -145,9 +149,14 @@ impl TokenMaker {
         .height(Length::Fill)
     }
     fn workspace_add(&self) -> Element<Message, Renderer> {
-        col![button("Open new file").on_press(Message::LookForImage)]
-            .height(Length::Fill)
-            .width(Length::Fill)
-            .into()
+        col![
+            vertical_space(Length::Fill),
+            button("Open file").on_press(Message::LookForImage),
+            vertical_space(Length::Fill)
+        ]
+        .height(Length::Fill)
+        .width(Length::Fill)
+        .align_items(Alignment::Center)
+        .into()
     }
 }

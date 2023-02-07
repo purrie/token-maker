@@ -1,6 +1,6 @@
 use std::path::PathBuf;
 
-use iced::widget::{button, column as col, container, row, scrollable, text, Column, Container};
+use iced::widget::{button, column as col, container, row, scrollable, text, Column, Container, horizontal_space};
 use iced::{Element, Length, Renderer};
 
 pub struct Browser {
@@ -150,6 +150,7 @@ impl Browser {
                 move_up,
                 text("|"),
                 text(format!("Directory: {}", self.path.to_string_lossy())),
+                horizontal_space(Length::Fill),
                 accept
             ]
             .height(Length::Shrink)
