@@ -32,6 +32,12 @@ pub enum Target {
 }
 
 impl Browser {
+    pub fn new<T: Into<PathBuf>>(start_path: T) -> Self {
+        Self {
+            path: start_path.into(),
+            ..Default::default()
+        }
+    }
     pub fn set_target(&mut self, target: Target) {
         self.target = target;
     }
