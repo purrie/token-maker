@@ -17,6 +17,7 @@ pub struct Workspace {
 
     modifiers: Vec<ModifierBox>,
     selected_modifier: usize,
+    renderer: bool,
 }
 
 #[derive(Debug, Clone)]
@@ -26,6 +27,7 @@ pub enum WorkspaceMessage {
     AddFrame,
     ModifierMessage(usize, ModifierMessage),
     SelectModifier(usize),
+    RenderResult(Handle),
 }
 
 pub type IndexedWorkspaceMessage = (usize, WorkspaceMessage);
@@ -39,6 +41,7 @@ impl Workspace {
             output_options: OutputOptions::default(),
             modifiers: Vec::new(),
             selected_modifier: 0,
+            renderer: false,
         }
     }
     pub fn view<'a>(&'a self) -> Element<'a, WorkspaceMessage, Renderer> {
@@ -62,16 +65,24 @@ impl Workspace {
             WorkspaceMessage::AddFrame => {
                 self.modifiers
                     .push(Frame::load("data/frames/ring.webp").unwrap().into());
-                self.update_image();
-                Command::none()
+                if self.renderer == false {
+                    self.perform_update()
+                } else {
+                    Command::none()
+                }
             }
             WorkspaceMessage::OutputSize(size) => {
                 if let Ok(s) = size.parse::<u32>() {
                     self.output_options.size.x = s;
                     self.output_options.size.y = s;
-                    self.update_image();
+                    if self.renderer == false {
+                        self.perform_update()
+                    } else {
+                        Command::none()
+                    }
+                } else {
+                    Command::none()
                 }
-                Command::none()
             }
             WorkspaceMessage::ModifierMessage(i, mess) => {
                 if let Some(x) = self.modifiers.get_mut(i) {
@@ -80,8 +91,11 @@ impl Workspace {
                         .map(move |x| WorkspaceMessage::ModifierMessage(i, x));
                     // for now, we assume that any modifier message changes modifiers and need to update the image.
                     // Change that to a separate return when that when it is no longer the case.
-                    self.update_image();
-                    o
+                    if self.renderer == false {
+                        Command::batch([o, self.perform_update()])
+                    } else {
+                        o
+                    }
                 } else {
                     Command::none()
                 }
@@ -90,21 +104,25 @@ impl Workspace {
                 self.selected_modifier = i.min(self.modifiers.len());
                 Command::none()
             }
+            WorkspaceMessage::RenderResult(r) => {
+                self.cached_result = r;
+                self.renderer = false;
+                Command::none()
+            }
         }
     }
 
     pub fn get_output(&self) -> Handle {
         self.cached_result.clone()
     }
-    fn update_image(&mut self) {
-        self.cached_result = image_to_handle(
-            &self
-                .modifiers
-                .iter()
-                .fold(self.source.clone(), |img, modif| {
-                    modif.modify(img, &self.output_options)
-                }),
-        );
+    fn perform_update(&self) -> Command<WorkspaceMessage> {
+        Command::perform(
+            render(
+                self.source.clone(),
+                self.modifiers.clone()
+            ),
+            WorkspaceMessage::RenderResult,
+        )
     }
     fn toolbar<'a>(&'a self) -> Row<'a, WorkspaceMessage, Renderer> {
         let mut r = row![
@@ -158,6 +176,17 @@ impl Workspace {
         }
         r
     }
+}
+
+async fn render(
+    image: DynamicImage,
+    mut modifiers: Vec<ModifierBox>,
+) -> Handle {
+    image_to_handle(
+        &modifiers
+            .iter_mut()
+            .fold(image, |img, modif| modif.modify(img)),
+    )
 }
 
 pub fn image_to_handle(image: &DynamicImage) -> Handle {

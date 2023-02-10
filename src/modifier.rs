@@ -5,15 +5,13 @@ pub use frame::Frame;
 use iced::{Command, Element, Renderer};
 use image::DynamicImage;
 
-use crate::data::OutputOptions;
-
 use self::frame::FrameMessage;
 
 /// Trait for modifiers to implement, technically not needed but helpful in standarizing what functionality they need to support
 pub trait Modifier {
     type Message: 'static + Into<ModifierMessage> + From<ModifierMessage>;
 
-    fn modify(&self, image: DynamicImage, options: &OutputOptions) -> DynamicImage;
+    fn modify(&self, image: DynamicImage) -> DynamicImage;
     fn label(&self) -> &str;
     fn properties_view(&self) -> Option<Element<Self::Message, Renderer>> {
         None
@@ -31,17 +29,17 @@ make_modifier_message!(FrameMessage);
 /// `ModifierBox` implements convenience functions for use with `Modifier` trait.
 macro_rules! make_modifier {
     ($($md:ident), +) => {
-        #[derive(Debug)]
+        #[derive(Clone, Debug)]
         pub enum ModifierBox {
             $(
                 $md($md),
             )+
         }
         impl ModifierBox {
-            pub fn modify(&self, image: DynamicImage, options: &OutputOptions) -> DynamicImage {
+            pub fn modify(&self, image: DynamicImage) -> DynamicImage {
                 match self {
                     $(
-                        ModifierBox::$md(x) => x.modify(image, options),
+                        ModifierBox::$md(x) => x.modify(image),
                     )+
                 }
             }

@@ -9,6 +9,7 @@ pub struct Data {
 }
 
 
+#[derive(Clone, Debug)]
 pub struct OutputOptions {
     pub size: Vec2u,
 }
