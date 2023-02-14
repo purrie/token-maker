@@ -1,11 +1,8 @@
-mod frame;
 
-pub use frame::Frame;
 
 use iced::{Command, Element, Renderer};
 use image::DynamicImage;
 
-use self::frame::FrameMessage;
 
 /// Trait for modifiers to implement, technically not needed but helpful in standarizing what functionality they need to support
 pub trait Modifier {

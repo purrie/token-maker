@@ -1,107 +1,77 @@
+use std::sync::Arc;
+
 use iced::widget::image::Handle;
-use iced::widget::{
-    button, column as col, container, image as rndr_image, row, scrollable, text, text_input,
-    Column, Row,
-};
+use iced::widget::{column as col, container, image as rndr_image, row, text_input, Row};
 use iced::{Command, Element, Length, Renderer};
 use image::DynamicImage;
 
-use crate::data::OutputOptions;
-use crate::modifier::{Frame, ModifierBox, ModifierMessage};
+use crate::frame::{Frame, FrameMessage};
+use crate::image::{image_to_handle, RgbaImage};
+// use crate::modifier::{Frame, ModifierBox, ModifierMessage};
 
 pub struct Workspace {
-    source: DynamicImage,
+    source: Arc<RgbaImage>,
     cached_result: Handle,
     output: String,
-    output_options: OutputOptions,
 
-    modifiers: Vec<ModifierBox>,
-    selected_modifier: usize,
+    // modifiers: Vec<ModifierBox>,
+    // selected_modifier: usize,
+    frame: Frame,
     renderer: bool,
 }
 
 #[derive(Debug, Clone)]
 pub enum WorkspaceMessage {
     OutputChange(String),
-    OutputSize(String),
-    AddFrame,
-    ModifierMessage(usize, ModifierMessage),
-    SelectModifier(usize),
+    FrameMessage(FrameMessage),
+    // ModifierMessage(usize, ModifierMessage),
+    // SelectModifier(usize),
     RenderResult(Handle),
 }
 
 pub type IndexedWorkspaceMessage = (usize, WorkspaceMessage);
 
+// TODO implement Futures chaining as a way of generating the final image from modifiers
+// This way, modifiers can create a future and return it to be ran on separate thread through Command
+// Modifiers would take a future as an input and run that feature to get an image to process, this way, all the futures can be gathered in one future and all modifiers are responsible for their own data
 impl Workspace {
     pub fn new(name: String, source: DynamicImage) -> Self {
+        let frame = Frame::load("./data/frames/ring.webp").unwrap();
+        let source = source.into_rgba8();
+        let source = Arc::new(source);
         Self {
-            cached_result: image_to_handle(&source),
+            frame,
+            cached_result: image_to_handle(source.as_ref()),
             source,
             output: name,
-            output_options: OutputOptions::default(),
-            modifiers: Vec::new(),
-            selected_modifier: 0,
+            // selected_modifier: 0,
             renderer: false,
         }
     }
     pub fn view<'a>(&'a self) -> Element<'a, WorkspaceMessage, Renderer> {
         let img = self.get_output();
         let img = rndr_image(img);
+        let size = self.frame.expected_size();
 
-        col![
-            self.toolbar().height(Length::FillPortion(1)),
-            img.height(Length::FillPortion(5)),
-        ]
-        .width(Length::Fill)
-        .height(Length::Fill)
-        .into()
+        let preview = container(
+            img.height(Length::Units(size.x as u16))
+                .width(Length::Units(size.y as u16)),
+        )
+        .center_x()
+        .center_y()
+        .height(Length::FillPortion(5))
+        .width(Length::Fill);
+
+        col![self.toolbar().height(Length::FillPortion(1)), preview,]
+            .width(Length::Fill)
+            .height(Length::Fill)
+            .into()
     }
     pub fn update(&mut self, msg: WorkspaceMessage) -> Command<WorkspaceMessage> {
-        match msg {
+        let mut render = false;
+        let mut cmd = match msg {
             WorkspaceMessage::OutputChange(s) => {
                 self.output = s;
-                Command::none()
-            }
-            WorkspaceMessage::AddFrame => {
-                self.modifiers
-                    .push(Frame::load("data/frames/ring.webp").unwrap().into());
-                if self.renderer == false {
-                    self.perform_update()
-                } else {
-                    Command::none()
-                }
-            }
-            WorkspaceMessage::OutputSize(size) => {
-                if let Ok(s) = size.parse::<u32>() {
-                    self.output_options.size.x = s;
-                    self.output_options.size.y = s;
-                    if self.renderer == false {
-                        self.perform_update()
-                    } else {
-                        Command::none()
-                    }
-                } else {
-                    Command::none()
-                }
-            }
-            WorkspaceMessage::ModifierMessage(i, mess) => {
-                if let Some(x) = self.modifiers.get_mut(i) {
-                    let o = x
-                        .properties_update(mess)
-                        .map(move |x| WorkspaceMessage::ModifierMessage(i, x));
-                    // for now, we assume that any modifier message changes modifiers and need to update the image.
-                    // Change that to a separate return when that when it is no longer the case.
-                    if self.renderer == false {
-                        Command::batch([o, self.perform_update()])
-                    } else {
-                        o
-                    }
-                } else {
-                    Command::none()
-                }
-            }
-            WorkspaceMessage::SelectModifier(i) => {
-                self.selected_modifier = i.min(self.modifiers.len());
                 Command::none()
             }
             WorkspaceMessage::RenderResult(r) => {
@@ -109,94 +79,47 @@ impl Workspace {
                 self.renderer = false;
                 Command::none()
             }
+            WorkspaceMessage::FrameMessage(x) => {
+                let cmd = self.frame.properties_update(x);
+                if self.frame.is_dirty() {
+                    render = true;
+                }
+                cmd.map(|x| WorkspaceMessage::FrameMessage(x))
+            }
+        };
+        if render && self.renderer == false {
+            let render = self.produce_render();
+            cmd = Command::batch([cmd, render]);
+            self.renderer = true;
         }
+        cmd
+    }
+
+    fn produce_render(&mut self) -> Command<WorkspaceMessage> {
+        let render = self.frame.prepare_image(self.source.clone());
+        // here goes modifiers
+        let render = self.frame.finalize_image(render);
+        self.frame.clean();
+        Command::perform(render, WorkspaceMessage::RenderResult)
     }
 
     pub fn get_output(&self) -> Handle {
         self.cached_result.clone()
     }
-    fn perform_update(&self) -> Command<WorkspaceMessage> {
-        Command::perform(
-            render(
-                self.source.clone(),
-                self.modifiers.clone()
-            ),
-            WorkspaceMessage::RenderResult,
-        )
-    }
+
     fn toolbar<'a>(&'a self) -> Row<'a, WorkspaceMessage, Renderer> {
-        let mut r = row![
-            col![
-                text_input("Output name", &self.output, |x| {
-                    WorkspaceMessage::OutputChange(x)
-                }),
-                text_input("", &self.output_options.size.x.to_string(), |x| {
-                    WorkspaceMessage::OutputSize(x)
-                }),
-            ]
-            .width(Length::FillPortion(1)),
-            row![
-                button("Add Frame")
-                    .on_press(WorkspaceMessage::AddFrame)
-                    .width(Length::Shrink),
-                col![
-                    text("Modifiers"),
-                    scrollable(Column::with_children(
-                        self.modifiers
-                            .iter()
-                            .enumerate()
-                            .fold(Vec::new(), |mut v, (i, x)| {
-                                v.push(
-                                    button(x.label())
-                                        .on_press(WorkspaceMessage::SelectModifier(i))
-                                        .into(),
-                                );
-                                v
-                            })
-                    ))
-                    .height(Length::Fill)
-                ]
-                .height(Length::Fill)
-                .width(Length::FillPortion(1))
-            ]
-            .height(Length::Fill)
-            .width(Length::FillPortion(1))
-        ];
-        if let Some(x) = self
-            .modifiers
-            .get(self.selected_modifier)
-            .and_then(|x| x.properties_view())
-        {
-            let mod_props = x.map(|x| WorkspaceMessage::ModifierMessage(self.selected_modifier, x));
-            r = r.push(
-                container(mod_props)
-                    .height(Length::Fill)
-                    .width(Length::FillPortion(1)),
-            );
-        }
+        let frame = self
+            .frame
+            .properties_view()
+            .map(WorkspaceMessage::FrameMessage);
+        let frame = container(frame).width(Length::Fill).height(Length::Fill);
+        let r = row![col![
+            text_input("Output name", &self.output, |x| {
+                WorkspaceMessage::OutputChange(x)
+            }),
+            frame,
+        ]
+        .width(Length::FillPortion(1)),];
         r
     }
-}
-
-async fn render(
-    image: DynamicImage,
-    mut modifiers: Vec<ModifierBox>,
-) -> Handle {
-    image_to_handle(
-        &modifiers
-            .iter_mut()
-            .fold(image, |img, modif| modif.modify(img)),
-    )
-}
-
-pub fn image_to_handle(image: &DynamicImage) -> Handle {
-    let img = image.as_rgba8().unwrap();
-    Handle::from_pixels(
-        img.width(),
-        img.height(),
-        img.pixels().fold(Vec::new(), |mut v, x| {
-            x.0.iter().for_each(|x| v.push(*x));
-            v
-        }),
-    )
 }
