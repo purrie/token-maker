@@ -1,11 +1,12 @@
 use std::sync::Arc;
 
 use iced::{widget::image::Handle, Point};
-use image::{GenericImageView, ImageBuffer, Pixel, Rgba};
+use image::{GenericImageView, ImageBuffer, Luma, Pixel, Rgba};
 
 use crate::math::Vec2u;
 
 pub type RgbaImage = ImageBuffer<Rgba<u8>, Vec<u8>>;
+pub type GrayscaleImage = ImageBuffer<Luma<u8>, Vec<u8>>;
 
 /// Creates a new image from provided one with requested size. It also allows to have the new image be a region of the source by "zooming" in on it.
 ///
@@ -14,14 +15,18 @@ pub type RgbaImage = ImageBuffer<Rgba<u8>, Vec<u8>>;
 /// `size`   - resulting image will be of this size
 /// `offset` - 2D scalar for determining which part of the source image will be sampled. (0, 0) is top left while (1, 1) is bottom right
 /// `zoom`   - any value other than 1.0 will scale up or down the source image in comparison to the output, together with `offset` this allows to zoom in on specific part of the image
-pub async fn resample_image_async<T>(
+///
+/// # Panics
+/// The function will panic if an image format with more than 4 channels per pixel is used and supplied values will try to sample outside of the image bounds
+pub async fn resample_image_async<T, P>(
     image: Arc<T>,
     size: Vec2u,
     offset: Point,
     zoom: f32,
-) -> RgbaImage
+) -> ImageBuffer<P, Vec<u8>>
 where
-    T: GenericImageView<Pixel = Rgba<u8>> + Sync + Send + 'static,
+    P: Pixel<Subpixel = u8>,
+    T: GenericImageView<Pixel = P> + Sync + Send + 'static,
 {
     let (aspect_x, aspect_y) = {
         let aspect_calc = image.width().max(image.height()) as f32;
@@ -43,7 +48,8 @@ where
             async move {
                 let start = worker_size * i;
                 let end = (start + worker_size).min(size.y);
-                let mut res = Vec::with_capacity(((end - start) * size.x) as usize);
+                let mut res: Vec<u8> = Vec::with_capacity(((end - start) * size.x) as usize);
+                let empty = [0; 4];
                 for y in start..end {
                     for x in 0..size.x {
                         let tx = {
@@ -67,14 +73,13 @@ where
                             source_scaled as u32
                         };
 
-                        let r = if tx < image.width() && ty < image.height() {
+                        let r = if tx < image.width() && tx > 0 && ty < image.height() && ty > 0 {
                             image.get_pixel(tx, ty)
                         } else {
-                            [0, 0, 0, 0].into()
-                        }
-                        .0;
-                        for p in r {
-                            res.push(p);
+                            *P::from_slice(&empty)
+                        };
+                        for p in r.channels() {
+                            res.push(*p);
                         }
                     }
                 }
@@ -88,7 +93,16 @@ where
         let mut r = th.await.unwrap();
         pixels.append(&mut r);
     }
-    RgbaImage::from_raw(size.x, size.y, pixels).unwrap()
+    ImageBuffer::from_raw(size.x, size.y, pixels).unwrap()
+}
+
+/// Applies a mask to the image
+pub fn mask_image(image: &mut RgbaImage, mask: &GrayscaleImage) {
+    image
+        .pixels_mut()
+        .zip(mask.pixels())
+        .filter(|(_, m)| m[0] < u8::MAX)
+        .for_each(|(p, m)| p[3] = m[0].min(p[3]));
 }
 
 /// Overlays foreground on top of background respecting alpha values of the image

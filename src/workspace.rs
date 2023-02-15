@@ -31,12 +31,9 @@ pub enum WorkspaceMessage {
 
 pub type IndexedWorkspaceMessage = (usize, WorkspaceMessage);
 
-// TODO implement Futures chaining as a way of generating the final image from modifiers
-// This way, modifiers can create a future and return it to be ran on separate thread through Command
-// Modifiers would take a future as an input and run that feature to get an image to process, this way, all the futures can be gathered in one future and all modifiers are responsible for their own data
 impl Workspace {
     pub fn new(name: String, source: DynamicImage) -> Self {
-        let frame = Frame::load("./data/frames/ring.webp").unwrap();
+        let frame = Frame::load("ring").unwrap();
         let source = source.into_rgba8();
         let source = Arc::new(source);
         Self {

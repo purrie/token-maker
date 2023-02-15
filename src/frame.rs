@@ -1,13 +1,15 @@
 use std::future::Future;
-use std::path::Path;
+use std::path::PathBuf;
 use std::sync::Arc;
 
 use iced::widget::image::Handle;
 use iced::widget::{column as col, row, slider, text, text_input};
 use iced::{Command, Length, Point};
-use image::{imageops::resize, DynamicImage};
+use image::imageops::resize;
 
-use crate::image::{blend_images, image_to_handle, resample_image_async, RgbaImage};
+use crate::image::{
+    blend_images, image_to_handle, mask_image, resample_image_async, GrayscaleImage, RgbaImage,
+};
 use crate::math::Vec2u;
 
 #[derive(Debug, Clone)]
@@ -24,14 +26,18 @@ pub enum FrameMessage {
     SizeY(u32),
     /// Result of recomputing the frame overlay
     Frame(RgbaImage),
+    /// Result of recomputing the mask of the frame
+    Mask(GrayscaleImage),
 }
 
 #[derive(Clone, Debug)]
 pub struct Frame {
     /// Frame image to be put onto the source image
-    image: Option<Arc<DynamicImage>>,
+    image: Option<Arc<RgbaImage>>,
     /// Cached image of the frame, already prepared for overlaying
     cached_image: Option<Arc<RgbaImage>>,
+    mask: Option<Arc<GrayscaleImage>>,
+    cached_mask: Option<Arc<GrayscaleImage>>,
     offset: Point,
     zoom: f32,
     export_size: Vec2u,
@@ -39,12 +45,15 @@ pub struct Frame {
 }
 
 impl Frame {
-    /// The function loads an image from the `path`
-    ///
-    /// TODO change the function to load a metadata file that would contain information about the image, mask and any other that I will need in the future.
-    pub fn load<T: AsRef<Path>>(path: T) -> Result<Self, image::ImageError> {
+    /// Loads an image by with `name` alongside with its mask if it has any
+    pub fn load(name: &str) -> Result<Self, image::ImageError> {
+        let path = PathBuf::from(format!("./data/frames/{}.webp", name));
+        let path_mask = PathBuf::from(format!("./data/frames/{}-mask.webp", name));
+
         let image = image::open(path)?;
+        let image = image.into_rgba8();
         let image = Arc::new(image);
+
         let mut s = Self {
             export_size: Vec2u {
                 x: image.width(),
@@ -53,6 +62,13 @@ impl Frame {
             image: Some(image),
             ..Default::default()
         };
+
+        if let Ok(img) = image::open(path_mask) {
+            let img = img.into_luma8();
+            let img = Arc::new(img);
+            s.mask = Some(img);
+        }
+
         s.cache_image();
         Ok(s)
     }
@@ -70,6 +86,17 @@ impl Frame {
         );
         let img = Arc::new(img);
         self.cached_image = Some(img);
+
+        if let Some(mask) = &self.mask {
+            let mask = resize(
+                mask.as_ref(),
+                self.export_size.x,
+                self.export_size.y,
+                image::imageops::FilterType::Nearest,
+            );
+            let mask = Arc::new(mask);
+            self.cached_mask = Some(mask);
+        }
     }
     /// Creates a future which will produce a base image to which rest of the modifier stack can apply its effects
     pub fn prepare_image(&self, source: Arc<RgbaImage>) -> impl Future<Output = RgbaImage> {
@@ -80,7 +107,7 @@ impl Frame {
         &self,
         source: impl Future<Output = RgbaImage>,
     ) -> impl Future<Output = Handle> {
-        apply_frame(source, self.cached_image.clone())
+        apply_frame(source, self.cached_image.clone(), self.cached_mask.clone())
     }
 
     pub fn is_dirty(&self) -> bool {
@@ -162,20 +189,7 @@ impl Frame {
                 let x = x.max(1).min(1024);
                 if x != self.export_size.x {
                     self.export_size.x = x;
-                    if let Some(image) = &self.image {
-                        Command::perform(
-                            resample_image_async(
-                                image.clone(),
-                                self.export_size,
-                                Point::default(),
-                                1.0,
-                            ),
-                            FrameMessage::Frame,
-                        )
-                    } else {
-                        // TODO probably worth handling the lack of image
-                        Command::none()
-                    }
+                    self.recompute_frame()
                 } else {
                     Command::none()
                 }
@@ -184,20 +198,7 @@ impl Frame {
                 let y = y.max(1).min(1024);
                 if y != self.export_size.y {
                     self.export_size.y = y;
-                    if let Some(image) = &self.image {
-                        Command::perform(
-                            resample_image_async(
-                                image.clone(),
-                                self.export_size,
-                                Point::default(),
-                                1.0,
-                            ),
-                            FrameMessage::Frame,
-                        )
-                    } else {
-                        // TODO probably worth handling the lack of image
-                        Command::none()
-                    }
+                    self.recompute_frame()
                 } else {
                     Command::none()
                 }
@@ -208,7 +209,29 @@ impl Frame {
                 self.dirty = true;
                 Command::none()
             }
+            FrameMessage::Mask(x) => {
+                let x = Arc::new(x);
+                self.cached_mask = Some(x);
+                self.dirty = true;
+                Command::none()
+            }
         }
+    }
+    fn recompute_frame(&self) -> Command<FrameMessage> {
+        let mut actions = Vec::with_capacity(2);
+        if let Some(x) = &self.image {
+            actions.push(Command::perform(
+                resample_image_async(x.clone(), self.export_size, Point::default(), 1.0),
+                FrameMessage::Frame,
+            ));
+        }
+        if let Some(x) = &self.mask {
+            actions.push(Command::perform(
+                resample_image_async(x.clone(), self.export_size, Point::default(), 1.0),
+                FrameMessage::Mask,
+            ));
+        }
+        Command::batch(actions)
     }
 }
 impl Default for Frame {
@@ -216,6 +239,8 @@ impl Default for Frame {
         Self {
             image: None,
             cached_image: None,
+            mask: None,
+            cached_mask: None,
             offset: Point::new(0.5, 0.1),
             zoom: 1.0,
             export_size: Vec2u { x: 512, y: 512 },
@@ -227,8 +252,12 @@ impl Default for Frame {
 async fn apply_frame(
     img: impl Future<Output = RgbaImage>,
     frame: Option<Arc<RgbaImage>>,
+    mask: Option<Arc<GrayscaleImage>>,
 ) -> Handle {
     let mut img = img.await;
+    if let Some(x) = mask {
+        mask_image(&mut img, x.as_ref());
+    }
     if let Some(x) = frame {
         blend_images(&mut img, x.as_ref());
     }
