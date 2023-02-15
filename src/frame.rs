@@ -6,9 +6,8 @@ use iced::widget::image::Handle;
 use iced::widget::{column as col, row, slider, text, text_input};
 use iced::{Command, Length, Point};
 use image::{imageops::resize, DynamicImage};
-use image::{GenericImageView, Rgba};
 
-use crate::image::{blend_images, image_to_handle, resample_image, RgbaImage};
+use crate::image::{blend_images, image_to_handle, resample_image_async, RgbaImage};
 use crate::math::Vec2u;
 
 #[derive(Debug, Clone)]
@@ -74,7 +73,7 @@ impl Frame {
     }
     /// Creates a future which will produce a base image to which rest of the modifier stack can apply its effects
     pub fn prepare_image(&self, source: Arc<RgbaImage>) -> impl Future<Output = RgbaImage> {
-        resize_frame(source, self.offset, self.zoom, self.export_size)
+        resample_image_async(source, self.export_size, self.offset, self.zoom)
     }
     /// Creates a future that will apply the frame image to result of the source future
     pub fn finalize_image(
@@ -160,26 +159,46 @@ impl Frame {
                 Command::none()
             }
             FrameMessage::SizeX(x) => {
-                self.export_size.x = x;
-                if let Some(image) = &self.image {
-                    Command::perform(
-                        resize_frame(image.clone(), Point::default(), 1.0, self.export_size),
-                        FrameMessage::Frame,
-                    )
+                let x = x.max(1).min(1024);
+                if x != self.export_size.x {
+                    self.export_size.x = x;
+                    if let Some(image) = &self.image {
+                        Command::perform(
+                            resample_image_async(
+                                image.clone(),
+                                self.export_size,
+                                Point::default(),
+                                1.0,
+                            ),
+                            FrameMessage::Frame,
+                        )
+                    } else {
+                        // TODO probably worth handling the lack of image
+                        Command::none()
+                    }
                 } else {
-                    // TODO probably worth handling the lack of image
                     Command::none()
                 }
             }
             FrameMessage::SizeY(y) => {
-                self.export_size.y = y;
-                if let Some(image) = &self.image {
-                    Command::perform(
-                        resize_frame(image.clone(), Point::default(), 1.0, self.export_size),
-                        FrameMessage::Frame,
-                    )
+                let y = y.max(1).min(1024);
+                if y != self.export_size.y {
+                    self.export_size.y = y;
+                    if let Some(image) = &self.image {
+                        Command::perform(
+                            resample_image_async(
+                                image.clone(),
+                                self.export_size,
+                                Point::default(),
+                                1.0,
+                            ),
+                            FrameMessage::Frame,
+                        )
+                    } else {
+                        // TODO probably worth handling the lack of image
+                        Command::none()
+                    }
                 } else {
-                    // TODO probably worth handling the lack of image
                     Command::none()
                 }
             }
@@ -205,15 +224,6 @@ impl Default for Frame {
     }
 }
 
-async fn resize_frame<T: GenericImageView<Pixel = Rgba<u8>>>(
-    image: Arc<T>,
-    offset: Point,
-    zoom: f32,
-    size: Vec2u,
-) -> RgbaImage {
-    resample_image(image.as_ref(), &size, &offset, zoom)
-}
-
 async fn apply_frame(
     img: impl Future<Output = RgbaImage>,
     frame: Option<Arc<RgbaImage>>,
@@ -222,5 +232,5 @@ async fn apply_frame(
     if let Some(x) = frame {
         blend_images(&mut img, x.as_ref());
     }
-    image_to_handle(&img)
+    image_to_handle(img)
 }

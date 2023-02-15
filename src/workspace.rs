@@ -41,7 +41,7 @@ impl Workspace {
         let source = Arc::new(source);
         Self {
             frame,
-            cached_result: image_to_handle(source.as_ref()),
+            cached_result: image_to_handle(source.as_ref().clone()),
             source,
             output: name,
             // selected_modifier: 0,

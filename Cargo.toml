@@ -10,4 +10,8 @@ image = "0.24.*"
 
 [dependencies.iced]
 version = "0.7"
-features = ["image"]
+features = ["image", "tokio"]
+
+[dependencies.tokio]
+version = "1.25"
+features = ["rt"]
