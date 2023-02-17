@@ -119,6 +119,19 @@ impl Frame {
     pub fn expected_size(&self) -> Vec2u {
         self.export_size
     }
+    pub fn get_offset(&self) -> Point {
+        self.offset
+    }
+    pub fn set_offset(&mut self, p: Point) {
+        self.offset = p;
+        self.dirty = true;
+    }
+    pub fn set_zoom(&mut self, zoom: f32) {
+        self.zoom = zoom;
+    }
+    pub fn get_zoom(&self) -> f32 {
+        self.zoom
+    }
 
     /// UI for the frame
     pub fn properties_view(&self) -> iced::Element<FrameMessage, iced::Renderer> {

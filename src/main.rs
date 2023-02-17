@@ -5,6 +5,7 @@ mod math;
 mod data;
 mod frame;
 mod image;
+mod trackpad;
 
 use iced::{Application, Settings};
 use token_maker::TokenMaker;

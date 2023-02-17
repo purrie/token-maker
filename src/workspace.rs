@@ -1,12 +1,13 @@
 use std::sync::Arc;
 
 use iced::widget::image::Handle;
-use iced::widget::{column as col, container, image as rndr_image, row, text_input, Row};
-use iced::{Command, Element, Length, Renderer};
+use iced::widget::{column as col, container, row, text_input, Row};
+use iced::{Command, Element, Length, Point, Renderer};
 use image::DynamicImage;
 
 use crate::frame::{Frame, FrameMessage};
 use crate::image::{image_to_handle, RgbaImage};
+use crate::trackpad::Trackpad;
 // use crate::modifier::{Frame, ModifierBox, ModifierMessage};
 
 pub struct Workspace {
@@ -18,6 +19,7 @@ pub struct Workspace {
     // selected_modifier: usize,
     frame: Frame,
     renderer: bool,
+    view: f32,
 }
 
 #[derive(Debug, Clone)]
@@ -27,6 +29,9 @@ pub enum WorkspaceMessage {
     // ModifierMessage(usize, ModifierMessage),
     // SelectModifier(usize),
     RenderResult(Handle),
+    Slide(Point),
+    Zoom(f32),
+    View(f32),
 }
 
 pub type IndexedWorkspaceMessage = (usize, WorkspaceMessage);
@@ -43,21 +48,23 @@ impl Workspace {
             output: name,
             // selected_modifier: 0,
             renderer: false,
+            view: 1.0,
         }
     }
     pub fn view<'a>(&'a self) -> Element<'a, WorkspaceMessage, Renderer> {
         let img = self.get_output();
-        let img = rndr_image(img);
-        let size = self.frame.expected_size();
+        let img = Trackpad::new(img, self.frame.get_offset(), |x| WorkspaceMessage::Slide(x))
+            .with_zoom(self.frame.get_zoom(), |x| WorkspaceMessage::Zoom(x))
+            .zoom_step(0.01)
+            .with_view_zoom(self.view, |x| WorkspaceMessage::View(x))
+            .position_step(0.001);
+        // let size = self.frame.expected_size();
 
-        let preview = container(
-            img.height(Length::Units(size.x as u16))
-                .width(Length::Units(size.y as u16)),
-        )
-        .center_x()
-        .center_y()
-        .height(Length::FillPortion(5))
-        .width(Length::Fill);
+        let preview = container(img)
+            .center_x()
+            .center_y()
+            .height(Length::FillPortion(5))
+            .width(Length::Fill);
 
         col![self.toolbar().height(Length::FillPortion(1)), preview,]
             .width(Length::Fill)
@@ -82,6 +89,20 @@ impl Workspace {
                     render = true;
                 }
                 cmd.map(|x| WorkspaceMessage::FrameMessage(x))
+            }
+            WorkspaceMessage::Slide(x) => {
+                self.frame.set_offset(x);
+                render = true;
+                Command::none()
+            }
+            WorkspaceMessage::Zoom(x) => {
+                self.frame.set_zoom(x);
+                render = true;
+                Command::none()
+            }
+            WorkspaceMessage::View(x) => {
+                self.view = x;
+                Command::none()
             }
         };
         if render && self.renderer == false {
