@@ -1,45 +1,55 @@
 use std::sync::Arc;
 
-use iced::{widget::image::Handle, Point};
+use iced::{widget::image::Handle, Point, Size};
 use image::{GenericImageView, ImageBuffer, Luma, Pixel, Rgba};
-
-use crate::math::Vec2u;
 
 pub type RgbaImage = ImageBuffer<Rgba<u8>, Vec<u8>>;
 pub type GrayscaleImage = ImageBuffer<Luma<u8>, Vec<u8>>;
 
-/// Creates a new image from provided one with requested size. It also allows to have the new image be a region of the source by "zooming" in on it.
+/// Resizes the image, clipping out the image parts or adding transparent pixels to the borders
 ///
 /// # Parameters
 /// `image`  - input image to process
-/// `size`   - resulting image will be of this size
-/// `offset` - 2D scalar for determining which part of the source image will be sampled. (0, 0) is top left while (1, 1) is bottom right
-/// `zoom`   - any value other than 1.0 will scale up or down the source image in comparison to the output, together with `offset` this allows to zoom in on specific part of the image
+/// `resolution`   - desired size of the image
+/// `offset` - 2D offset in pixels to move the image frame
+/// `size`   - any value other than 1.0 will scale up or down the source image in comparison to the output, together with `offset` this allows to zoom in on specific part of the image
 ///
 /// # Panics
 /// The function will panic if an image format with more than 4 channels per pixel is used and supplied values will try to sample outside of the image bounds
-pub async fn resample_image_async<T, P>(
+///
+/// Panic will also happen if supplied image  or requested resolution has width or height of 0 pixels.
+pub async fn resize_image<T, P>(
     image: Arc<T>,
-    size: Vec2u,
+    resolution: Size<u32>,
     offset: Point,
-    zoom: f32,
+    size: f32,
 ) -> ImageBuffer<P, Vec<u8>>
 where
     P: Pixel<Subpixel = u8>,
     T: GenericImageView<Pixel = P> + Sync + Send + 'static,
 {
-    let (aspect_x, aspect_y) = {
-        let aspect_calc = image.width().max(image.height()) as f32;
-        let aspect_x = image.height() as f32 / aspect_calc;
-        let aspect_y = image.width() as f32 / aspect_calc;
-        (aspect_x, aspect_y)
+    let aspect = {
+        let aspect_x = image.width() as f32 / resolution.width as f32 * size;
+        let aspect_y = image.height() as f32 / resolution.height as f32 * size;
+        aspect_x.min(aspect_y)
     };
-    // offsets are used alongside zoom function to determine which part of the image (in range of 0..1) the function should zoom onto
-    let scaled_offset_x = offset.x - offset.x / zoom;
-    let scaled_offset_y = offset.y - offset.y / zoom;
+
+    let half = Size {
+        width: resolution.width / 2,
+        height: resolution.height / 2,
+    };
+    let source_size = Size {
+        width: image.width() as i32,
+        height: image.height() as i32,
+    };
 
     let worker_size = 128;
-    let workers = size.y / worker_size + if size.y % worker_size > 0 { 1 } else { 0 };
+    let workers = resolution.height / worker_size
+        + if resolution.height % worker_size > 0 {
+            1
+        } else {
+            0
+        };
 
     let mut threads = Vec::with_capacity(workers as usize);
     for i in 0..workers {
@@ -47,34 +57,33 @@ where
             let image = image.clone();
             async move {
                 let start = worker_size * i;
-                let end = (start + worker_size).min(size.y);
-                let mut res: Vec<u8> = Vec::with_capacity(((end - start) * size.x) as usize);
+                let end = (start + worker_size).min(resolution.height);
+                let mut res: Vec<u8> =
+                    Vec::with_capacity(((end - start) * resolution.width) as usize);
                 let empty = [0; 4];
                 for y in start..end {
-                    for x in 0..size.x {
+                    for x in 0..resolution.width {
                         let tx = {
-                            // percent location of the pixel in range 0..1
-                            let mut self_percent = x as f32 / size.x as f32 * aspect_x;
-                            if zoom > 0.01 {
-                                let scale = self_percent / zoom;
-                                self_percent = scale + scaled_offset_x;
-                            }
-                            let source_scaled = image.width() as f32 * self_percent;
-                            source_scaled as u32
+                            // calculate position in range -half.width..half.width
+                            let center = x as i32 - half.width as i32;
+                            // calculate position of the target pixel from the image
+                            let pix = center as f32 * aspect + offset.x;
+                            pix as i32
                         };
                         let ty = {
-                            // percent location of the pixel in range 0..1
-                            let mut self_percent = y as f32 / size.y as f32 * aspect_y;
-                            if zoom > 0.01 {
-                                let scale = self_percent / zoom;
-                                self_percent = scale + scaled_offset_y;
-                            }
-                            let source_scaled = image.height() as f32 * self_percent;
-                            source_scaled as u32
+                            // calculate position in range -half.width..half.width
+                            let center = y as i32 - half.height as i32;
+                            // calculate position of the target pixel from the image
+                            let pix = center as f32 * aspect + offset.y;
+                            pix as i32
                         };
 
-                        let r = if tx < image.width() && tx > 0 && ty < image.height() && ty > 0 {
-                            image.get_pixel(tx, ty)
+                        let r = if tx < source_size.width
+                            && tx >= 0
+                            && ty < source_size.height
+                            && ty >= 0
+                        {
+                            image.get_pixel(tx as u32, ty as u32)
                         } else {
                             *P::from_slice(&empty)
                         };
@@ -88,12 +97,14 @@ where
         });
         threads.push(th);
     }
-    let mut pixels = Vec::with_capacity((size.x * size.y * 4) as usize);
+    let mut pixels = Vec::with_capacity(
+        (resolution.width * resolution.height * P::CHANNEL_COUNT as u32) as usize,
+    );
     for th in threads {
         let mut r = th.await.unwrap();
         pixels.append(&mut r);
     }
-    ImageBuffer::from_raw(size.x, size.y, pixels).unwrap()
+    ImageBuffer::from_raw(resolution.width, resolution.height, pixels).unwrap()
 }
 
 /// Applies a mask to the image

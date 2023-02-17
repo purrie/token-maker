@@ -56,7 +56,10 @@ impl<'a, Message> Trackpad<'a, Message> {
         self.position_step = step;
         self
     }
-    pub fn with_view_zoom<F>(mut self, view_zoom: f32, on_change: F) -> Self where F: Fn(f32) -> Message + 'a {
+    pub fn with_view_zoom<F>(mut self, view_zoom: f32, on_change: F) -> Self
+    where
+        F: Fn(f32) -> Message + 'a,
+    {
         self.view_size = view_zoom;
         self.on_view_zoom = Some(Box::new(on_change));
         self
@@ -82,13 +85,8 @@ where
     fn state(&self) -> iced_native::widget::tree::State {
         iced_native::widget::tree::State::new(State::default())
     }
-    fn layout(&self, renderer: &Renderer, limits: &Limits) -> Node {
-        let size = renderer.dimensions(&self.handle);
-        let size = Size {
-            width: size.width as f32 * self.view_size,
-            height: size.height as f32 * self.view_size,
-        };
-        Node::new(limits.max().min(size))
+    fn layout(&self, _renderer: &Renderer, limits: &Limits) -> Node {
+        Node::new(limits.max())
     }
 
     fn draw(
@@ -131,18 +129,19 @@ where
         &mut self,
         state: &mut Tree,
         event: iced::Event,
-        _layout: iced_native::Layout<'_>,
-        _cursor_position: Point,
+        layout: iced_native::Layout<'_>,
+        cursor_position: Point,
         _renderer: &Renderer,
         _clipboard: &mut dyn iced_native::Clipboard,
         shell: &mut iced_native::Shell<'_, Message>,
     ) -> Status {
         let local_state = state.state.downcast_mut::<State>();
+        let bounds = layout.bounds();
         match event {
             iced::Event::Keyboard(key) => match key {
                 iced::keyboard::Event::ModifiersChanged(mods) => {
                     local_state.mods = mods;
-                    Status::Captured
+                    Status::Ignored
                 }
                 _ => Status::Ignored,
             },
@@ -150,29 +149,52 @@ where
                 iced::mouse::Event::CursorMoved { position } => {
                     if local_state.tracking {
                         let delta = position - local_state.cursor;
-                        let delta = delta * self.position_step;
+                        let delta = if local_state.mods.shift() {
+                            delta * self.position_step * 0.1
+                        } else {
+                            delta * self.position_step
+                        };
                         let new_point = self.position - delta;
                         if let Some(f) = &self.on_drag {
                             let m = f(new_point);
                             shell.publish(m);
                         }
+                        local_state.cursor = position;
+                        Status::Captured
+                    } else {
+                        local_state.cursor = position;
+                        Status::Ignored
                     }
-                    local_state.cursor = position;
-                    Status::Captured
                 }
                 iced::mouse::Event::ButtonPressed(_button) => {
-                    local_state.tracking = true;
-                    Status::Captured
+                    if bounds.contains(cursor_position) {
+                        local_state.tracking = true;
+                        Status::Captured
+                    } else {
+                        Status::Ignored
+                    }
                 }
                 iced::mouse::Event::ButtonReleased(_button) => {
-                    local_state.tracking = false;
-                    Status::Captured
+                    if bounds.contains(cursor_position) {
+                        local_state.tracking = false;
+                        Status::Captured
+                    } else {
+                        Status::Ignored
+                    }
                 }
                 iced::mouse::Event::WheelScrolled { delta } => {
+                    if bounds.contains(cursor_position) == false {
+                        return Status::Ignored;
+                    }
                     let delta = match delta {
                         iced::mouse::ScrollDelta::Lines { y, .. } => y,
                         iced::mouse::ScrollDelta::Pixels { y, .. } => y,
                     } * self.zoom_step;
+                    let delta = if local_state.mods.shift() {
+                        delta * 0.1
+                    } else {
+                        delta
+                    };
                     if local_state.mods.alt() {
                         if let Some(z) = &self.on_view_zoom {
                             let new_zoom = self.view_size + delta;
@@ -184,7 +206,7 @@ where
                         }
                     } else {
                         if let Some(z) = &self.on_zoom {
-                            let new_zoom = self.zoom + delta;
+                            let new_zoom = self.zoom - delta;
                             let m = z(new_zoom);
                             shell.publish(m);
                             Status::Captured

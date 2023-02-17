@@ -1,11 +1,10 @@
-mod file_browser;
-mod token_maker;
-mod workspace;
-mod math;
 mod data;
+mod file_browser;
 mod frame;
 mod image;
+mod token_maker;
 mod trackpad;
+mod workspace;
 
 use iced::{Application, Settings};
 use token_maker::TokenMaker;

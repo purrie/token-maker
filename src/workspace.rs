@@ -55,9 +55,9 @@ impl Workspace {
         let img = self.get_output();
         let img = Trackpad::new(img, self.frame.get_offset(), |x| WorkspaceMessage::Slide(x))
             .with_zoom(self.frame.get_zoom(), |x| WorkspaceMessage::Zoom(x))
-            .zoom_step(0.01)
+            .zoom_step(0.1)
             .with_view_zoom(self.view, |x| WorkspaceMessage::View(x))
-            .position_step(0.001);
+            .position_step(2.0);
         // let size = self.frame.expected_size();
 
         let preview = container(img)

@@ -4,13 +4,12 @@ use std::sync::Arc;
 
 use iced::widget::image::Handle;
 use iced::widget::{column as col, row, slider, text, text_input};
-use iced::{Command, Length, Point};
+use iced::{Command, Length, Point, Size};
 use image::imageops::resize;
 
 use crate::image::{
-    blend_images, image_to_handle, mask_image, resample_image_async, GrayscaleImage, RgbaImage,
+    blend_images, image_to_handle, mask_image, resize_image, GrayscaleImage, RgbaImage,
 };
-use crate::math::Vec2u;
 
 #[derive(Debug, Clone)]
 pub enum FrameMessage {
@@ -40,7 +39,7 @@ pub struct Frame {
     cached_mask: Option<Arc<GrayscaleImage>>,
     offset: Point,
     zoom: f32,
-    export_size: Vec2u,
+    export_size: Size<u32>,
     dirty: bool,
 }
 
@@ -55,9 +54,13 @@ impl Frame {
         let image = Arc::new(image);
 
         let mut s = Self {
-            export_size: Vec2u {
-                x: image.width(),
-                y: image.height(),
+            export_size: Size {
+                width: image.width(),
+                height: image.height(),
+            },
+            offset: Point {
+                x: image.width() as f32 / 2.0,
+                y: image.height() as f32 / 2.0,
             },
             image: Some(image),
             ..Default::default()
@@ -80,8 +83,8 @@ impl Frame {
 
         let img = resize(
             frame.as_ref(),
-            self.export_size.x,
-            self.export_size.y,
+            self.export_size.width,
+            self.export_size.height,
             image::imageops::FilterType::Nearest,
         );
         let img = Arc::new(img);
@@ -90,8 +93,8 @@ impl Frame {
         if let Some(mask) = &self.mask {
             let mask = resize(
                 mask.as_ref(),
-                self.export_size.x,
-                self.export_size.y,
+                self.export_size.width,
+                self.export_size.height,
                 image::imageops::FilterType::Nearest,
             );
             let mask = Arc::new(mask);
@@ -100,7 +103,7 @@ impl Frame {
     }
     /// Creates a future which will produce a base image to which rest of the modifier stack can apply its effects
     pub fn prepare_image(&self, source: Arc<RgbaImage>) -> impl Future<Output = RgbaImage> {
-        resample_image_async(source, self.export_size, self.offset, self.zoom)
+        resize_image(source, self.export_size, self.offset, self.zoom)
     }
     /// Creates a future that will apply the frame image to result of the source future
     pub fn finalize_image(
@@ -115,9 +118,6 @@ impl Frame {
     }
     pub fn clean(&mut self) {
         self.dirty = false;
-    }
-    pub fn expected_size(&self) -> Vec2u {
-        self.export_size
     }
     pub fn get_offset(&self) -> Point {
         self.offset
@@ -148,19 +148,19 @@ impl Frame {
                 slider(0.0..=1.0, self.offset.y, |x| FrameMessage::MoveY(x)).step(0.01),
                 slider(0.1..=10.0, self.zoom, |x| FrameMessage::Zoom(x)).step(0.01),
                 row![
-                    text_input("", &self.export_size.x.to_string(), |x| {
+                    text_input("", &self.export_size.width.to_string(), |x| {
                         if let Ok(x) = x.parse() {
                             FrameMessage::SizeX(x)
                         } else {
-                            FrameMessage::SizeX(self.export_size.x)
+                            FrameMessage::SizeX(self.export_size.width)
                         }
                     }),
                     text("x"),
-                    text_input("", &self.export_size.y.to_string(), |y| {
+                    text_input("", &self.export_size.height.to_string(), |y| {
                         if let Ok(y) = y.parse() {
                             FrameMessage::SizeY(y)
                         } else {
-                            FrameMessage::SizeY(self.export_size.y)
+                            FrameMessage::SizeY(self.export_size.height)
                         }
                     }),
                 ]
@@ -200,8 +200,8 @@ impl Frame {
             }
             FrameMessage::SizeX(x) => {
                 let x = x.max(1).min(1024);
-                if x != self.export_size.x {
-                    self.export_size.x = x;
+                if x != self.export_size.width {
+                    self.export_size.width = x;
                     self.recompute_frame()
                 } else {
                     Command::none()
@@ -209,8 +209,8 @@ impl Frame {
             }
             FrameMessage::SizeY(y) => {
                 let y = y.max(1).min(1024);
-                if y != self.export_size.y {
-                    self.export_size.y = y;
+                if y != self.export_size.height {
+                    self.export_size.height = y;
                     self.recompute_frame()
                 } else {
                     Command::none()
@@ -234,13 +234,13 @@ impl Frame {
         let mut actions = Vec::with_capacity(2);
         if let Some(x) = &self.image {
             actions.push(Command::perform(
-                resample_image_async(x.clone(), self.export_size, Point::default(), 1.0),
+                resize_image(x.clone(), self.export_size, Point::default(), 1.0),
                 FrameMessage::Frame,
             ));
         }
         if let Some(x) = &self.mask {
             actions.push(Command::perform(
-                resample_image_async(x.clone(), self.export_size, Point::default(), 1.0),
+                resize_image(x.clone(), self.export_size, Point::default(), 1.0),
                 FrameMessage::Mask,
             ));
         }
@@ -256,7 +256,10 @@ impl Default for Frame {
             cached_mask: None,
             offset: Point::new(0.5, 0.1),
             zoom: 1.0,
-            export_size: Vec2u { x: 512, y: 512 },
+            export_size: Size {
+                width: 512,
+                height: 512,
+            },
             dirty: true,
         }
     }
