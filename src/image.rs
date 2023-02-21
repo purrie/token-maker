@@ -6,22 +6,66 @@ use image::{GenericImageView, ImageBuffer, Luma, Pixel, Rgba};
 pub type RgbaImage = ImageBuffer<Rgba<u8>, Vec<u8>>;
 pub type GrayscaleImage = ImageBuffer<Luma<u8>, Vec<u8>>;
 
+/// Operation markers, they hold data and denote which operation should be performed on the image
+pub enum ImageOperation {
+    /// Data and instruction for the beginning of the rendering process.
+    Begin {
+        image: Arc<RgbaImage>,
+        resolution: Size<u32>,
+        offset: Point,
+        size: f32,
+    },
+    /// Uses the mask image to hide parts of the rendered image, dark parts of the mask hide pixels in the result
+    ///
+    /// This operation expects the overlay is the same resolution as the base image
+    Mask { mask: Arc<GrayscaleImage> },
+    /// Overlays the image on the rendered image using alpha channel blending
+    ///
+    /// This operation expects the overlay is the same resolution as the base image
+    Blend { overlay: Arc<RgbaImage> },
+}
+
+impl ImageOperation {
+    /// Creates a starting image in rendering process
+    pub async fn begin(self) -> RgbaImage {
+        match self {
+            ImageOperation::Begin {
+                image,
+                resolution,
+                offset,
+                size,
+            } => resample_image(image, resolution, offset, size).await,
+            _ => panic!("Image processing began on a wrong operation"),
+        }
+    }
+    /// Performs the operation on the image, returning the result
+    pub async fn perform(self, image: RgbaImage) -> RgbaImage {
+        match self {
+            ImageOperation::Begin { .. } => {
+                panic!("Tried to call Begin operation as not a first operation!")
+            }
+            ImageOperation::Mask { mask } => mask_image(image, mask.as_ref()),
+            ImageOperation::Blend { overlay } => blend_images(image, overlay.as_ref()),
+        }
+    }
+}
+
 /// Resizes the image, clipping out the image parts or adding transparent pixels to the borders
 ///
 /// # Parameters
-/// `image`  - input image to process
+/// `image`        - input image to process
 /// `resolution`   - desired size of the image
-/// `offset` - 2D offset in pixels to move the image frame
-/// `size`   - any value other than 1.0 will scale up or down the source image in comparison to the output, together with `offset` this allows to zoom in on specific part of the image
+/// `center_point` - 2D position which should be considered as the center of the image
+/// `size`         - any value other than 1.0 will scale up or down the source image in comparison to the output, together with `offset` this allows to zoom in on specific part of the image
 ///
 /// # Panics
 /// The function will panic if an image format with more than 4 channels per pixel is used and supplied values will try to sample outside of the image bounds
 ///
 /// Panic will also happen if supplied image  or requested resolution has width or height of 0 pixels.
-pub async fn resize_image<T, P>(
+pub async fn resample_image<T, P>(
     image: Arc<T>,
     resolution: Size<u32>,
-    offset: Point,
+    center_point: Point,
     size: f32,
 ) -> ImageBuffer<P, Vec<u8>>
 where
@@ -67,14 +111,14 @@ where
                             // calculate position in range -half.width..half.width
                             let center = x as i32 - half.width as i32;
                             // calculate position of the target pixel from the image
-                            let pix = center as f32 * aspect + offset.x;
+                            let pix = center as f32 * aspect + center_point.x;
                             pix as i32
                         };
                         let ty = {
                             // calculate position in range -half.width..half.width
                             let center = y as i32 - half.height as i32;
                             // calculate position of the target pixel from the image
-                            let pix = center as f32 * aspect + offset.y;
+                            let pix = center as f32 * aspect + center_point.y;
                             pix as i32
                         };
 
@@ -108,23 +152,28 @@ where
 }
 
 /// Applies a mask to the image
-pub fn mask_image(image: &mut RgbaImage, mask: &GrayscaleImage) {
+/// This function requires the mask to be the same size as the base image to work correctly
+pub fn mask_image(mut image: RgbaImage, mask: &GrayscaleImage) -> RgbaImage {
     image
         .pixels_mut()
         .zip(mask.pixels())
         .filter(|(_, m)| m[0] < u8::MAX)
         .for_each(|(p, m)| p[3] = m[0].min(p[3]));
+    image
 }
 
 /// Overlays foreground on top of background respecting alpha values of the image
-pub fn blend_images(background: &mut RgbaImage, foreground: &RgbaImage) {
-    background
+/// This function requires the overlay to be the same size as the base image to work correctly
+pub fn blend_images(mut image: RgbaImage, overlay: &RgbaImage) -> RgbaImage {
+    image
         .pixels_mut()
-        .zip(foreground.pixels())
+        .zip(overlay.pixels())
         .filter(|(_, s)| s[3] > 0)
-        .for_each(|(t, s)| t.blend(s))
+        .for_each(|(t, s)| t.blend(s));
+    image
 }
 
+/// Transforms the image into iced image handle
 pub fn image_to_handle(image: RgbaImage) -> Handle {
     Handle::from_pixels(image.width(), image.height(), image.into_raw())
 }

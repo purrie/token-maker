@@ -1,7 +1,7 @@
 mod data;
 mod file_browser;
-mod frame;
 mod image;
+mod modifier;
 mod token_maker;
 mod trackpad;
 mod workspace;
@@ -11,7 +11,7 @@ use token_maker::TokenMaker;
 
 fn main() {
     TokenMaker::run(Settings {
-        default_text_size: 24,
+        default_text_size: 24.0,
         ..Default::default()
     })
     .unwrap()

@@ -1,31 +1,45 @@
-
 use iced::widget::{button, column as col, container, row, tooltip, vertical_space, Row};
-use iced::{executor, Alignment, Application, Command, Element, Length, Renderer, Theme};
+use iced::{
+    executor, Alignment, Application, Command, Element, Length, Renderer, Subscription, Theme,
+};
 
-use crate::data::Data;
-use crate::file_browser::{BrowserOperation, BrowsingResult, Target, Browser};
+use crate::data::{load_frames, FrameImage, ProgramData};
+use crate::file_browser::{Browser, BrowserOperation, BrowsingResult, Target};
 use crate::workspace::{IndexedWorkspaceMessage, Workspace};
 
+/// Main application, manages general aspects of the application
 #[derive(Default)]
 pub struct TokenMaker {
     operation: Mode,
-    data: Data,
+    data: ProgramData,
     workspaces: Vec<Workspace>,
 }
 
 #[derive(Debug, Clone)]
 pub enum Message {
+    /// Opens file browser to look for an image file
     LookForImage,
+    /// Opens file browser to look for a folder to which workspaces will export their images
     LookForOutputFolder,
+    /// Message related to the file browser
     FileBrowser(BrowserOperation),
+    /// Message related to the workspace
     Workspace(IndexedWorkspaceMessage),
+    /// Result of a task which loads in all the frames
+    LoadedFrames(Vec<FrameImage>),
+    /// Error message
+    /// TODO turn this into a proper error handling
+    Error(String),
 }
 
 #[derive(Debug, Default)]
 pub enum Mode {
+    /// This mode instructs the program to display workspace creation UI
     #[default]
     CreateWorkspace,
+    /// Regular operation of the program, displays all active workspaces
     Workspace,
+    /// Displays the file browser
     FileBrowser,
 }
 
@@ -42,7 +56,7 @@ impl Application for TokenMaker {
         (
             {
                 let s = Self {
-                    data: Data {
+                    data: ProgramData {
                         file: Browser::new("./"),
                         ..Default::default()
                     },
@@ -50,7 +64,17 @@ impl Application for TokenMaker {
                 };
                 s
             },
-            Command::none(),
+            Command::perform(load_frames(), |x| {
+                if let Ok(x) = x {
+                    if x.len() > 0 {
+                        Message::LoadedFrames(x)
+                    } else {
+                        Message::Error("Could not find any frames".to_string())
+                    }
+                } else {
+                    Message::Error("Failed to load frames".to_string())
+                }
+            }),
         )
     }
 
@@ -83,8 +107,7 @@ impl Application for TokenMaker {
                                     let img = img.into_rgba8();
                                     let name =
                                         path.file_name().unwrap().to_string_lossy().to_string();
-                                    let new_workspace =
-                                        Workspace::new(name, img.into());
+                                    let new_workspace = Workspace::new(name, img.into());
                                     self.workspaces.push(new_workspace);
                                 }
                             } else {
@@ -103,11 +126,19 @@ impl Application for TokenMaker {
             Message::Workspace((index, message)) => {
                 if let Some(workspace) = self.workspaces.get_mut(index) {
                     workspace
-                        .update(message)
+                        .update(message, &self.data)
                         .map(move |x| Message::Workspace((index, x)))
                 } else {
                     Command::none()
                 }
+            }
+            Message::LoadedFrames(frames) => {
+                self.data.available_frames = frames;
+                Command::none()
+            }
+            Message::Error(e) => {
+                eprintln!("Error: {}", e);
+                Command::none()
             }
         }
     }
@@ -127,9 +158,27 @@ impl Application for TokenMaker {
             .center_y()
             .into()
     }
+    fn subscription(&self) -> Subscription<Self::Message> {
+        // collects subscribtions from workspaces and sends them to the framework
+        // Everything is worked into regular workspace update cycle
+        let mut subs = Vec::new();
+        self.workspaces.iter().enumerate().for_each(|(i, x)| {
+            let s = x
+                .subscribtion()
+                .with(i)
+                .map(|(i, m)| Message::Workspace((i, m)));
+            subs.push(s)
+        });
+        if subs.len() > 0 {
+            Subscription::batch(subs)
+        } else {
+            Subscription::none()
+        }
+    }
 }
 
 impl TokenMaker {
+    /// Main program UI located at the top of the window
     fn top_bar(&self) -> Element<Message, Renderer> {
         row![
             button("add"),
@@ -144,14 +193,21 @@ impl TokenMaker {
         .height(Length::Shrink)
         .into()
     }
+    /// Constructs UI for displaying all workspaces
     fn workspace_view(&self) -> Row<Message, Renderer> {
-        Row::with_children(self.workspaces.iter().enumerate().fold(Vec::new(), |mut c, (i, x), | {
-            c.push(x.view().map(move |x| Message::Workspace((i, x))));
-            c
-        }))
+        Row::with_children(
+            self.workspaces
+                .iter()
+                .enumerate()
+                .fold(Vec::new(), |mut c, (i, x)| {
+                    c.push(x.view(&self.data).map(move |x| Message::Workspace((i, x))));
+                    c
+                }),
+        )
         .width(Length::Fill)
         .height(Length::Fill)
     }
+    /// Constructs UI for creating a new workspace
     fn workspace_add(&self) -> Element<Message, Renderer> {
         col![
             vertical_space(Length::Fill),

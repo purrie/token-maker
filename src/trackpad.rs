@@ -7,6 +7,11 @@ use iced_native::{
 };
 
 /// Widget that provides a trackpad-like functionality, allowing dragging and zooming messages to be processed on its surface
+///
+/// The widget can be controlled with mouse cursor, pressing onto its surface enables drag message that shifts the position.
+///
+/// Optional features give ability to also send zoom messages on mouse wheel, change size of displayed image when holding alt.
+/// Holding shift allows more gradual changes
 pub struct Trackpad<'a, Message> {
     handle: Handle,
     position: Point,
@@ -22,6 +27,7 @@ pub struct Trackpad<'a, Message> {
 }
 
 impl<'a, Message> Trackpad<'a, Message> {
+    /// Creates a new `Trackpad` with basic hold-and-drag messages, resulting value is a new position with delta of mouse movement applied
     pub fn new<F>(handle: Handle, position: Point, on_drag: F) -> Self
     where
         F: Fn(Point) -> Message + 'a,
@@ -40,6 +46,7 @@ impl<'a, Message> Trackpad<'a, Message> {
             zoom_step: 1.0,
         }
     }
+    /// Enables scroll wheel message
     pub fn with_zoom<F>(mut self, zoom: f32, on_change: F) -> Self
     where
         F: Fn(f32) -> Message + 'a,
@@ -48,14 +55,19 @@ impl<'a, Message> Trackpad<'a, Message> {
         self.zoom = zoom;
         self
     }
+    /// Determines how much one scroll wheel line affects the zoom, by default the value is 1.0
     pub fn zoom_step(mut self, step: f32) -> Self {
         self.zoom_step = step;
         self
     }
+    /// Determines how much one move step affects the position change, by default the value is 1.0
     pub fn position_step(mut self, step: f32) -> Self {
         self.position_step = step;
         self
     }
+    /// Enables view size change message, allowing resizing the image displayed in the `Trackpad`
+    ///
+    /// View zoom uses the same step value as regular zoom.
     pub fn with_view_zoom<F>(mut self, view_zoom: f32, on_change: F) -> Self
     where
         F: Fn(f32) -> Message + 'a,
