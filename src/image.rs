@@ -202,3 +202,13 @@ pub fn blend_images(mut image: RgbaImage, overlay: &RgbaImage) -> RgbaImage {
 pub fn image_to_handle(image: RgbaImage) -> Handle {
     Handle::from_pixels(image.width(), image.height(), image.into_raw())
 }
+pub fn image_arc_to_handle(image: &Arc<RgbaImage>) -> Handle {
+    Handle::from_pixels(
+        image.width(),
+        image.height(),
+        image.pixels().fold(Vec::new(), |mut v, p| {
+            p.0.iter().for_each(|px| v.push(*px));
+            v
+        }),
+    )
+}

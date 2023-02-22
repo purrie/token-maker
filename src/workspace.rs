@@ -6,14 +6,13 @@ use iced::{
     widget::{
         button, column as col, container, image::Handle, pick_list, row, text, text_input, Row,
     },
-    Command, Element, Length, Point, Renderer, Subscription,
+    Command, Element, Length, Point, Renderer, Size, Subscription,
 };
 
 use iced_native::image::Data;
-use image::DynamicImage;
 
 use crate::data::{ProgramData, WorkspaceData};
-use crate::image::{image_to_handle, ImageFormat, ImageOperation, RgbaImage};
+use crate::image::{image_arc_to_handle, image_to_handle, ImageFormat, ImageOperation, RgbaImage};
 use crate::modifier::{ModifierBox, ModifierMessage, ModifierOperation, ModifierTag};
 use crate::trackpad::Trackpad;
 
@@ -79,10 +78,9 @@ impl Workspace {
     ///
     /// `name`   - the name that should be used as default export name
     /// `source` - the image to be used as a base
-    pub fn new(name: String, source: DynamicImage) -> Self {
-        let source = source.into_rgba8();
+    pub fn new(name: String, source: Arc<RgbaImage>) -> Self {
         Self {
-            cached_result: image_to_handle(source.clone()),
+            cached_result: image_arc_to_handle(&source),
             data: WorkspaceData {
                 output: name,
                 dirty: true,
@@ -90,9 +88,13 @@ impl Workspace {
                     x: source.width() as f32 / 2.0,
                     y: source.height() as f32 / 10.0,
                 },
+                export_size: Size {
+                    width: 512,
+                    height: 512,
+                },
                 ..Default::default()
             },
-            source: Arc::new(source),
+            source,
             modifiers: Vec::new(),
             selected_modifier: 0,
             rendering: false,
@@ -262,6 +264,16 @@ impl Workspace {
     /// Creates a schedule for rendering jobs
     pub fn subscribtion(&self) -> Subscription<WorkspaceMessage> {
         iced::time::every(Duration::from_secs_f32(0.05)).map(|_| WorkspaceMessage::Render)
+    }
+
+    /// Returns the source image this workspace uses
+    pub fn get_source(&self) -> &Arc<RgbaImage> {
+        &self.source
+    }
+
+    /// Returns the name this workspace will save the output to
+    pub fn get_output_name(&self) -> &str {
+        &self.data.output
     }
 
     /// Returns a clone of the latest rendering result

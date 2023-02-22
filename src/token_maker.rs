@@ -1,10 +1,16 @@
-use iced::widget::{button, column as col, container, row, tooltip, vertical_space, Row};
+use std::collections::HashSet;
+
+use iced::widget::{
+    button, column as col, container, image as picture, row, text, tooltip, vertical_space, Row,
+};
 use iced::{
-    executor, Alignment, Application, Command, Element, Length, Renderer, Subscription, Theme,
+    executor, Alignment, Application, Command, ContentFit, Element, Length, Renderer, Subscription,
+    Theme,
 };
 
 use crate::data::{load_frames, FrameImage, ProgramData};
 use crate::file_browser::{Browser, BrowserOperation, BrowsingResult, Target};
+use crate::image::image_arc_to_handle;
 use crate::workspace::{IndexedWorkspaceMessage, Workspace, WorkspaceMessage};
 
 /// Main application, manages general aspects of the application
@@ -27,6 +33,12 @@ pub enum Message {
     Workspace(IndexedWorkspaceMessage),
     /// Request to close specified workspace
     WorkspaceClose(usize),
+    /// Request to create a new workspace and copy image used by other workspace as the base for it
+    WorkspaceNewFromSource(usize),
+    /// Opens UI for adding a new workspace
+    WorkspaceAdd,
+    /// Cancel adding a new workspace
+    WorkspaceAddCancel,
     /// Result of a task which loads in all the frames
     LoadedFrames(Vec<FrameImage>),
     /// Error message
@@ -133,6 +145,24 @@ impl Application for TokenMaker {
                 }
                 Command::none()
             }
+            Message::WorkspaceNewFromSource(index) => {
+                if let Some(w) = self.workspaces.get(index) {
+                    let img = w.get_source();
+                    let name = w.get_output_name().to_string();
+                    let new_workspace = Workspace::new(name, img.clone());
+                    self.workspaces.push(new_workspace);
+                }
+                self.operation = Mode::Workspace;
+                Command::none()
+            }
+            Message::WorkspaceAdd => {
+                self.operation = Mode::CreateWorkspace;
+                Command::none()
+            }
+            Message::WorkspaceAddCancel => {
+                self.operation = Mode::Workspace;
+                Command::none()
+            }
             Message::WorkspaceClose(index) => {
                 if self.workspaces.len() > index {
                     self.workspaces.remove(index);
@@ -172,7 +202,7 @@ impl Application for TokenMaker {
         let top_bar = self.top_bar();
         let ui = match self.operation {
             Mode::FileBrowser => self.data.file.view().map(|x| Message::FileBrowser(x)),
-            Mode::CreateWorkspace => self.workspace_view().push(self.workspace_add()).into(),
+            Mode::CreateWorkspace => self.workspace_add().into(),
             Mode::Workspace => self.workspace_view().into(),
         };
         let ui = col![top_bar, ui].height(Length::Fill).width(Length::Fill);
@@ -215,8 +245,7 @@ impl TokenMaker {
     /// Main program UI located at the top of the window
     fn top_bar(&self) -> Element<Message, Renderer> {
         row![
-            button("add"),
-            button("remove"),
+            button("Add").on_press(Message::WorkspaceAdd),
             tooltip(
                 button("Set Output Folder").on_press(Message::LookForOutputFolder),
                 format!("Current output: {}", self.data.output.to_string_lossy()),
@@ -228,6 +257,7 @@ impl TokenMaker {
                 button("Save")
             },
         ]
+        .spacing(2)
         .width(Length::Fill)
         .height(Length::Shrink)
         .into()
@@ -255,11 +285,55 @@ impl TokenMaker {
     }
     /// Constructs UI for creating a new workspace
     fn workspace_add(&self) -> Element<Message, Renderer> {
-        col![
-            vertical_space(Length::Fill),
-            button("Open file").on_press(Message::LookForImage),
-            vertical_space(Length::Fill)
-        ]
+        let openers = button("Open file").on_press(Message::LookForImage);
+        if self.workspaces.len() > 0 {
+            // checker has function of preventing multiple of the same image being shown to user
+            let mut checker = HashSet::new();
+
+            // sourcers allow user to use already loaded image for the new frame
+            let sourcers = col![
+                row![
+                    button("Cancel").on_press(Message::WorkspaceAddCancel),
+                    text("Source from other workspace:"),
+                ]
+                .spacing(2),
+                self.workspaces
+                    .iter()
+                    .enumerate()
+                    .fold(row![], |r, (i, w)| {
+                        let img = w.get_source();
+                        if checker.contains(img) {
+                            return r;
+                        }
+                        let r = r.push(
+                            button(
+                                picture(image_arc_to_handle(img))
+                                    .content_fit(ContentFit::ScaleDown)
+                                    .width(Length::Shrink),
+                            )
+                            .on_press(Message::WorkspaceNewFromSource(i)),
+                        );
+                        checker.insert(img);
+                        r
+                    })
+            ]
+            .spacing(2);
+
+            col![
+                vertical_space(Length::Fill),
+                sourcers,
+                vertical_space(Length::Fill),
+                openers,
+                vertical_space(Length::Fill)
+            ]
+        } else {
+            col![
+                vertical_space(Length::Fill),
+                openers,
+                vertical_space(Length::Fill)
+            ]
+        }
+        .spacing(4)
         .height(Length::Fill)
         .width(Length::Fill)
         .align_items(Alignment::Center)

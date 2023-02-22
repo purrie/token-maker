@@ -11,7 +11,7 @@ use token_maker::TokenMaker;
 
 fn main() {
     TokenMaker::run(Settings {
-        default_text_size: 24.0,
+        default_text_size: 20.0,
         ..Default::default()
     })
     .unwrap()
