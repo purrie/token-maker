@@ -104,7 +104,13 @@ impl Application for TokenMaker {
                 if let Ok(x) = self.data.file.update(x) {
                     match x {
                         BrowsingResult::Pending => {}
-                        BrowsingResult::Canceled => {}
+                        BrowsingResult::Canceled => {
+                            if self.workspaces.len() > 0 {
+                                self.operation = Mode::Workspace;
+                            } else {
+                                self.operation = Mode::CreateWorkspace;
+                            }
+                        }
                         BrowsingResult::Done(path) => {
                             if path.is_file() {
                                 if let Ok(img) = image::open(&path) {
