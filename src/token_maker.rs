@@ -30,6 +30,8 @@ pub enum Message {
     /// Error message
     /// TODO turn this into a proper error handling
     Error(String),
+    /// Saves images from all workspaces
+    Export,
 }
 
 #[derive(Debug, Default)]
@@ -106,7 +108,7 @@ impl Application for TokenMaker {
                                 if let Ok(img) = image::open(&path) {
                                     let img = img.into_rgba8();
                                     let name =
-                                        path.file_name().unwrap().to_string_lossy().to_string();
+                                        path.file_stem().unwrap().to_string_lossy().to_string();
                                     let new_workspace = Workspace::new(name, img.into());
                                     self.workspaces.push(new_workspace);
                                 }
@@ -138,6 +140,12 @@ impl Application for TokenMaker {
             }
             Message::Error(e) => {
                 eprintln!("Error: {}", e);
+                Command::none()
+            }
+            Message::Export => {
+                self.workspaces
+                    .iter()
+                    .for_each(|x| x.export(&self.data.output));
                 Command::none()
             }
         }
@@ -178,6 +186,15 @@ impl Application for TokenMaker {
 }
 
 impl TokenMaker {
+    fn can_save(&self) -> bool {
+        if self.data.output.exists() == false {
+            return false;
+        }
+        if self.workspaces.len() == 0 {
+            return false;
+        }
+        self.workspaces.iter().all(|x| x.can_save())
+    }
     /// Main program UI located at the top of the window
     fn top_bar(&self) -> Element<Message, Renderer> {
         row![
@@ -187,7 +204,12 @@ impl TokenMaker {
                 button("Set Output Folder").on_press(Message::LookForOutputFolder),
                 format!("Current output: {}", self.data.output.to_string_lossy()),
                 tooltip::Position::Right
-            )
+            ),
+            if self.can_save() {
+                button("Save").on_press(Message::Export)
+            } else {
+                button("Save")
+            },
         ]
         .width(Length::Fill)
         .height(Length::Shrink)

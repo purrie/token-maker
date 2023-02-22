@@ -1,5 +1,6 @@
-use std::sync::Arc;
+use std::path::PathBuf;
 use std::time::Duration;
+use std::{path::Path, sync::Arc};
 
 use iced::{
     widget::{
@@ -8,10 +9,11 @@ use iced::{
     Command, Element, Length, Point, Renderer, Subscription,
 };
 
+use iced_native::image::Data;
 use image::DynamicImage;
 
 use crate::data::{ProgramData, WorkspaceData};
-use crate::image::{image_to_handle, ImageOperation, RgbaImage};
+use crate::image::{image_to_handle, ImageFormat, ImageOperation, RgbaImage};
 use crate::modifier::{ModifierBox, ModifierMessage, ModifierOperation, ModifierTag};
 use crate::trackpad::Trackpad;
 
@@ -30,12 +32,22 @@ pub struct Workspace {
     data: WorkspaceData,
     /// Flag specifies whatever there is active rendering job in process
     rendering: bool,
+    /// Carrier for the width of the exported image, when it is a valid number, it is transformed into actual value
+    width_carrier: String,
+    /// Carrier for the height of the exported image, when it is a valid number, it is transformed into actual value
+    height_carrier: String,
 }
 
 #[derive(Debug, Clone)]
 pub enum WorkspaceMessage {
     /// Change to the name of the file the image is to be writen to
     OutputNameChange(String),
+    /// Sets desired image format for the exported file
+    SetFormat(ImageFormat),
+    /// Sets width for the exported image. It uses string carrier to allow user input invalid input without breaking the input
+    SetOutputWidth(String),
+    /// Sets height for the exported image. It uses string carrier to allow user input invalid input without breaking the input
+    SetOutputHeight(String),
     /// Request to add a specific modifier type
     AddModifier(ModifierTag),
     /// Request to remove a modifier on specified index
@@ -82,6 +94,8 @@ impl Workspace {
             modifiers: Vec::new(),
             selected_modifier: 0,
             rendering: false,
+            width_carrier: "512".to_string(),
+            height_carrier: "512".to_string(),
         }
     }
 
@@ -94,8 +108,33 @@ impl Workspace {
         match msg {
             WorkspaceMessage::OutputNameChange(s) => {
                 self.data.output = s;
-                self.data.dirty = true;
                 self.update_modifiers(pdata)
+            }
+            WorkspaceMessage::SetOutputWidth(w) => {
+                if let Ok(p) = w.parse::<u32>() {
+                    self.data.export_size.width = p;
+                    self.width_carrier = w;
+                    self.data.dirty = true;
+                    self.update_modifiers(pdata)
+                } else {
+                    if w.len() == 0 {
+                        self.width_carrier = w;
+                    }
+                    Command::none()
+                }
+            }
+            WorkspaceMessage::SetOutputHeight(h) => {
+                if let Ok(p) = h.parse::<u32>() {
+                    self.data.export_size.height = p;
+                    self.height_carrier = h;
+                    self.data.dirty = true;
+                    self.update_modifiers(pdata)
+                } else {
+                    if h.len() == 0 {
+                        self.height_carrier = h;
+                    }
+                    Command::none()
+                }
             }
             WorkspaceMessage::Slide(x) => {
                 self.data.offset = x;
@@ -141,6 +180,10 @@ impl Workspace {
             }
             WorkspaceMessage::SelectModifier(index) => {
                 self.selected_modifier = index;
+                Command::none()
+            }
+            WorkspaceMessage::SetFormat(format) => {
+                self.data.format = format;
                 Command::none()
             }
         }
@@ -260,11 +303,24 @@ impl Workspace {
     fn toolbar<'a>(&'a self, pdata: &ProgramData) -> Row<'a, WorkspaceMessage, Renderer> {
         // main controls are mostly for customizing the workspace
         let main_controls = col![
-            text_input("Output name", &self.data.output, |x| {
-                WorkspaceMessage::OutputNameChange(x)
-            }),
-            pick_list(&ModifierTag::ALL[..], None, WorkspaceMessage::AddModifier)
-                .placeholder("Add modifier"),
+            row![
+                text_input("Output name", &self.data.output, |x| {
+                    WorkspaceMessage::OutputNameChange(x)
+                }),
+                pick_list(&ImageFormat::EXPORTABLE[..], Some(self.data.format), |x| {
+                    WorkspaceMessage::SetFormat(x)
+                })
+                .width(Length::Shrink),
+            ],
+            row![
+                text_input("Width", &self.width_carrier, |x| {
+                    WorkspaceMessage::SetOutputWidth(x)
+                }),
+                text("x"),
+                text_input("Height", &self.height_carrier, |x| {
+                    WorkspaceMessage::SetOutputHeight(x)
+                })
+            ]
         ]
         .width(Length::FillPortion(1))
         .height(Length::Fill);
@@ -272,10 +328,15 @@ impl Workspace {
         // list of modifiers, to allow switching between them
         let modifier_list = self.modifiers.iter().enumerate().fold(
             // column for modifiers
-            col![text("Active Modifiers:")]
-                .spacing(2)
-                .height(Length::Fill)
-                .width(Length::FillPortion(1)),
+            col![row![
+                text("Active Modifiers:"),
+                pick_list(&ModifierTag::ALL[..], None, WorkspaceMessage::AddModifier)
+                    .placeholder("Add"),
+            ]
+            .spacing(2)]
+            .spacing(2)
+            .height(Length::Fill)
+            .width(Length::FillPortion(1)),
             |col, (i, m)| {
                 let r = row![
                     button(m.label()).on_press(WorkspaceMessage::SelectModifier(i)),
@@ -300,5 +361,24 @@ impl Workspace {
             r = r.push(selected);
         }
         r.spacing(5)
+    }
+
+    pub fn export<P: AsRef<Path>>(&self, root: P) {
+        let mut path = PathBuf::from(root.as_ref());
+        path.push(&self.data.output);
+        path.set_extension(self.data.format.to_string());
+        let Data::Rgba { width, height, pixels } = self.cached_result.data() else {
+            panic!("doesn't work!");
+        };
+        image::save_buffer(path, pixels, *width, *height, image::ColorType::Rgba8).unwrap();
+    }
+    pub fn can_save(&self) -> bool {
+        if self.rendering {
+            return false;
+        }
+        if self.data.output.len() < 1 {
+            return false;
+        }
+        true
     }
 }

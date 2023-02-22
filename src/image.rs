@@ -1,4 +1,4 @@
-use std::sync::Arc;
+use std::{fmt::Display, sync::Arc};
 
 use iced::{widget::image::Handle, Point, Size};
 use image::{GenericImageView, ImageBuffer, Luma, Pixel, Rgba};
@@ -47,6 +47,31 @@ impl ImageOperation {
             ImageOperation::Mask { mask } => mask_image(image, mask.as_ref()),
             ImageOperation::Blend { overlay } => blend_images(image, overlay.as_ref()),
         }
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum ImageFormat {
+    WebP,
+    Jpeg,
+    Png,
+}
+impl ImageFormat {
+    pub const EXPORTABLE: [ImageFormat; 3] =
+        [ImageFormat::WebP, ImageFormat::Jpeg, ImageFormat::Png];
+}
+
+impl Display for ImageFormat {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(
+            f,
+            "{}",
+            match self {
+                Self::WebP => "webp",
+                Self::Jpeg => "jpeg",
+                Self::Png => "png",
+            }
+        )
     }
 }
 

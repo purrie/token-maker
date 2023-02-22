@@ -5,7 +5,7 @@ use iced_native::image::Handle;
 
 use crate::{
     file_browser::Browser,
-    image::{image_to_handle, GrayscaleImage, RgbaImage},
+    image::{image_to_handle, GrayscaleImage, ImageFormat, RgbaImage},
 };
 
 /// Data and tools available in the program
@@ -26,6 +26,7 @@ pub struct WorkspaceData {
     pub view: f32,
     /// Name of the file to export the result to
     pub output: String,
+    pub format: ImageFormat,
 
     /// Offset applied to the source image for rendering
     pub offset: Point,
@@ -47,6 +48,7 @@ impl Default for WorkspaceData {
             offset: Default::default(),
             zoom: 1.0,
             dirty: Default::default(),
+            format: ImageFormat::WebP,
         }
     }
 }
