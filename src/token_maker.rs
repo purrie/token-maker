@@ -5,7 +5,7 @@ use iced::{
 
 use crate::data::{load_frames, FrameImage, ProgramData};
 use crate::file_browser::{Browser, BrowserOperation, BrowsingResult, Target};
-use crate::workspace::{IndexedWorkspaceMessage, Workspace};
+use crate::workspace::{IndexedWorkspaceMessage, Workspace, WorkspaceMessage};
 
 /// Main application, manages general aspects of the application
 #[derive(Default)]
@@ -25,6 +25,8 @@ pub enum Message {
     FileBrowser(BrowserOperation),
     /// Message related to the workspace
     Workspace(IndexedWorkspaceMessage),
+    /// Request to close specified workspace
+    WorkspaceClose(usize),
     /// Result of a task which loads in all the frames
     LoadedFrames(Vec<FrameImage>),
     /// Error message
@@ -121,6 +123,15 @@ impl Application for TokenMaker {
                                 self.operation = Mode::CreateWorkspace;
                             }
                         }
+                    }
+                }
+                Command::none()
+            }
+            Message::WorkspaceClose(index) => {
+                if self.workspaces.len() > index {
+                    self.workspaces.remove(index);
+                    if self.workspaces.len() == 0 {
+                        self.operation = Mode::CreateWorkspace;
                     }
                 }
                 Command::none()
@@ -222,7 +233,14 @@ impl TokenMaker {
                 .iter()
                 .enumerate()
                 .fold(Vec::new(), |mut c, (i, x)| {
-                    c.push(x.view(&self.data).map(move |x| Message::Workspace((i, x))));
+                    c.push(x.view(&self.data).map(move |x| {
+                        match &x {
+                            // Handling requests sent from workspace to the application
+                            WorkspaceMessage::Close => Message::WorkspaceClose(i),
+                            // only specific requests are considered for application, others are routed back to the workspace
+                            _ => Message::Workspace((i, x)),
+                        }
+                    }));
                     c
                 }),
         )

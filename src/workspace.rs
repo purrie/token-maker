@@ -66,6 +66,8 @@ pub enum WorkspaceMessage {
     Zoom(f32),
     /// Change to size of the widget rendering the image
     View(f32),
+    /// Request to close the workspace
+    Close,
 }
 
 pub type IndexedWorkspaceMessage = (usize, WorkspaceMessage);
@@ -186,6 +188,9 @@ impl Workspace {
                 self.data.format = format;
                 Command::none()
             }
+            WorkspaceMessage::Close => {
+                unreachable!("This event must be hijacked by the program to close this workspace!")
+            }
         }
     }
 
@@ -303,6 +308,7 @@ impl Workspace {
     fn toolbar<'a>(&'a self, pdata: &ProgramData) -> Row<'a, WorkspaceMessage, Renderer> {
         // main controls are mostly for customizing the workspace
         let main_controls = col![
+            row![button("Close").on_press(WorkspaceMessage::Close),],
             row![
                 text_input("Output name", &self.data.output, |x| {
                     WorkspaceMessage::OutputNameChange(x)
