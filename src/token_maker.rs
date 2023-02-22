@@ -1,7 +1,9 @@
 use std::collections::HashSet;
+use std::sync::Arc;
 
 use iced::widget::{
-    button, column as col, container, image as picture, row, text, tooltip, vertical_space, Row,
+    button, column as col, container, image as picture, radio, row, text, tooltip, vertical_space,
+    Row,
 };
 use iced::{
     executor, Alignment, Application, Command, ContentFit, Element, Length, Renderer, Subscription,
@@ -10,8 +12,8 @@ use iced::{
 
 use crate::data::{load_frames, FrameImage, ProgramData};
 use crate::file_browser::{Browser, BrowserOperation, BrowsingResult, Target};
-use crate::image::image_arc_to_handle;
-use crate::workspace::{IndexedWorkspaceMessage, Workspace, WorkspaceMessage};
+use crate::image::{image_arc_to_handle, RgbaImage};
+use crate::workspace::{Workspace, WorkspaceMessage, WorkspaceTemplate};
 
 /// Main application, manages general aspects of the application
 #[derive(Default)]
@@ -19,6 +21,8 @@ pub struct TokenMaker {
     operation: Mode,
     data: ProgramData,
     workspaces: Vec<Workspace>,
+
+    new_workspace_template: WorkspaceTemplate,
 }
 
 #[derive(Debug, Clone)]
@@ -30,7 +34,7 @@ pub enum Message {
     /// Message related to the file browser
     FileBrowser(BrowserOperation),
     /// Message related to the workspace
-    Workspace(IndexedWorkspaceMessage),
+    Workspace(usize, WorkspaceMessage),
     /// Request to close specified workspace
     WorkspaceClose(usize),
     /// Request to create a new workspace and copy image used by other workspace as the base for it
@@ -39,6 +43,8 @@ pub enum Message {
     WorkspaceAdd,
     /// Cancel adding a new workspace
     WorkspaceAddCancel,
+    /// Sets default workspace template to use for new workspaces
+    WorkspaceTemplate(WorkspaceTemplate),
     /// Result of a task which loads in all the frames
     LoadedFrames(Vec<FrameImage>),
     /// Error message
@@ -115,45 +121,52 @@ impl Application for TokenMaker {
             Message::FileBrowser(x) => {
                 if let Ok(x) = self.data.file.update(x) {
                     match x {
-                        BrowsingResult::Pending => {}
+                        BrowsingResult::Pending => Command::none(),
                         BrowsingResult::Canceled => {
                             if self.workspaces.len() > 0 {
                                 self.operation = Mode::Workspace;
                             } else {
                                 self.operation = Mode::CreateWorkspace;
                             }
+                            Command::none()
                         }
                         BrowsingResult::Done(path) => {
-                            if path.is_file() {
+                            let command = if path.is_file() {
                                 if let Ok(img) = image::open(&path) {
                                     let img = img.into_rgba8();
                                     let name =
                                         path.file_stem().unwrap().to_string_lossy().to_string();
-                                    let new_workspace = Workspace::new(name, img.into());
-                                    self.workspaces.push(new_workspace);
+                                    self.add_workspace(name, img.into())
+                                } else {
+                                    Command::none()
                                 }
                             } else {
                                 self.data.output = path;
-                            }
+                                Command::none()
+                            };
+
                             if self.workspaces.len() > 0 {
                                 self.operation = Mode::Workspace;
                             } else {
                                 self.operation = Mode::CreateWorkspace;
                             }
+                            command
                         }
                     }
+                } else {
+                    Command::none()
                 }
-                Command::none()
             }
             Message::WorkspaceNewFromSource(index) => {
-                if let Some(w) = self.workspaces.get(index) {
-                    let img = w.get_source();
+                let command = if let Some(w) = self.workspaces.get(index) {
+                    let img = w.get_source().clone();
                     let name = w.get_output_name().to_string();
-                    let new_workspace = Workspace::new(name, img.clone());
-                    self.workspaces.push(new_workspace);
-                }
+                    self.add_workspace(name, img)
+                } else {
+                    Command::none()
+                };
                 self.operation = Mode::Workspace;
-                Command::none()
+                command
             }
             Message::WorkspaceAdd => {
                 self.operation = Mode::CreateWorkspace;
@@ -172,14 +185,18 @@ impl Application for TokenMaker {
                 }
                 Command::none()
             }
-            Message::Workspace((index, message)) => {
+            Message::Workspace(index, message) => {
                 if let Some(workspace) = self.workspaces.get_mut(index) {
                     workspace
                         .update(message, &self.data)
-                        .map(move |x| Message::Workspace((index, x)))
+                        .map(move |x| Message::Workspace(index, x))
                 } else {
                     Command::none()
                 }
+            }
+            Message::WorkspaceTemplate(t) => {
+                self.new_workspace_template = t;
+                Command::none()
             }
             Message::LoadedFrames(frames) => {
                 self.data.available_frames = frames;
@@ -202,7 +219,7 @@ impl Application for TokenMaker {
         let top_bar = self.top_bar();
         let ui = match self.operation {
             Mode::FileBrowser => self.data.file.view().map(|x| Message::FileBrowser(x)),
-            Mode::CreateWorkspace => self.workspace_add().into(),
+            Mode::CreateWorkspace => self.workspace_add_view().into(),
             Mode::Workspace => self.workspace_view().into(),
         };
         let ui = col![top_bar, ui].height(Length::Fill).width(Length::Fill);
@@ -221,7 +238,7 @@ impl Application for TokenMaker {
             let s = x
                 .subscribtion()
                 .with(i)
-                .map(|(i, m)| Message::Workspace((i, m)));
+                .map(|(i, m)| Message::Workspace(i, m));
             subs.push(s)
         });
         if subs.len() > 0 {
@@ -233,6 +250,17 @@ impl Application for TokenMaker {
 }
 
 impl TokenMaker {
+    /// This function adds a new workspace with given data
+    fn add_workspace(&mut self, name: String, image: Arc<RgbaImage>) -> Command<Message> {
+        let (command, new_workspace) =
+            Workspace::new(name, image, &self.data, self.new_workspace_template);
+        let i = self.workspaces.len();
+        let command = command.map(move |x| Message::Workspace(i, x));
+        self.workspaces.push(new_workspace);
+        command
+    }
+
+    /// Checks if it is save to save images
     fn can_save(&self) -> bool {
         if self.data.output.exists() == false {
             return false;
@@ -274,7 +302,7 @@ impl TokenMaker {
                             // Handling requests sent from workspace to the application
                             WorkspaceMessage::Close => Message::WorkspaceClose(i),
                             // only specific requests are considered for application, others are routed back to the workspace
-                            _ => Message::Workspace((i, x)),
+                            _ => Message::Workspace(i, x),
                         }
                     }));
                     c
@@ -284,8 +312,23 @@ impl TokenMaker {
         .height(Length::Fill)
     }
     /// Constructs UI for creating a new workspace
-    fn workspace_add(&self) -> Element<Message, Renderer> {
+    fn workspace_add_view(&self) -> Element<Message, Renderer> {
+        let templates = col![
+            text("Template for new workspace:"),
+            WorkspaceTemplate::ALL
+                .iter()
+                .fold(row![].spacing(10), |r, wt| {
+                    let wt = *wt;
+                    let opt = radio(wt.to_string(), wt, Some(self.new_workspace_template), |x| {
+                        Message::WorkspaceTemplate(x)
+                    });
+                    r.push(opt)
+                }),
+        ]
+        .spacing(4);
+
         let openers = button("Open file").on_press(Message::LookForImage);
+
         if self.workspaces.len() > 0 {
             // checker has function of preventing multiple of the same image being shown to user
             let mut checker = HashSet::new();
@@ -321,6 +364,8 @@ impl TokenMaker {
 
             col![
                 vertical_space(Length::Fill),
+                templates,
+                vertical_space(Length::Fill),
                 sourcers,
                 vertical_space(Length::Fill),
                 openers,
@@ -328,6 +373,8 @@ impl TokenMaker {
             ]
         } else {
             col![
+                vertical_space(Length::Fill),
+                templates,
                 vertical_space(Length::Fill),
                 openers,
                 vertical_space(Length::Fill)

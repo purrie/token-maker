@@ -6,6 +6,7 @@ use iced_native::image::Handle;
 use crate::{
     file_browser::Browser,
     image::{image_to_handle, GrayscaleImage, ImageFormat, RgbaImage},
+    workspace::WorkspaceTemplate,
 };
 
 /// Data and tools available in the program
@@ -28,6 +29,8 @@ pub struct WorkspaceData {
     pub output: String,
     pub format: ImageFormat,
 
+    /// Flag used to signal to the workspace and its modifiers what is the intended output to better adjust default values
+    pub template: WorkspaceTemplate,
     /// Offset applied to the source image for rendering
     pub offset: Point,
     /// Zoom applied to the source image for rendering
@@ -49,6 +52,7 @@ impl Default for WorkspaceData {
             zoom: 1.0,
             dirty: Default::default(),
             format: ImageFormat::WebP,
+            template: WorkspaceTemplate::None,
         }
     }
 }

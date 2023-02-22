@@ -1,3 +1,4 @@
+use std::fmt::Display;
 use std::path::PathBuf;
 use std::time::Duration;
 use std::{path::Path, sync::Arc};
@@ -69,38 +70,68 @@ pub enum WorkspaceMessage {
     Close,
 }
 
-pub type IndexedWorkspaceMessage = (usize, WorkspaceMessage);
-
 impl Workspace {
     /// Creates a new workspace from provided image
     ///
     /// # Parameters
-    ///
-    /// `name`   - the name that should be used as default export name
-    /// `source` - the image to be used as a base
-    pub fn new(name: String, source: Arc<RgbaImage>) -> Self {
-        Self {
-            cached_result: image_arc_to_handle(&source),
-            data: WorkspaceData {
-                output: name,
-                dirty: true,
-                offset: Point {
-                    x: source.width() as f32 / 2.0,
-                    y: source.height() as f32 / 10.0,
-                },
-                export_size: Size {
-                    width: 512,
-                    height: 512,
-                },
-                ..Default::default()
+    /// `name`     - the name that should be used as default export name
+    /// `source`   - the image to be used as a base
+    /// `pdata`    - program data used for loading parameters for workspace and its modifiers
+    /// `template` - setting to set up the workspace with defaults for specific template
+    pub fn new(
+        name: String,
+        source: Arc<RgbaImage>,
+        pdata: &ProgramData,
+        template: WorkspaceTemplate,
+    ) -> (Command<WorkspaceMessage>, Self) {
+        let mut data = WorkspaceData {
+            output: name,
+            dirty: true,
+            offset: Point {
+                x: source.width() as f32 / 2.0,
+                y: source.height() as f32 / 10.0,
             },
+            template,
+            ..Default::default()
+        };
+        let mut modifiers = Vec::new();
+
+        let command = match template {
+            WorkspaceTemplate::None => Command::none(),
+            WorkspaceTemplate::Token => {
+                data.output = format!("{}-token", data.output);
+                let (command, frame) = ModifierTag::Frame.make_box(pdata, &data);
+                modifiers.push(frame);
+                command.map(|x| WorkspaceMessage::ModifierMessage(0, x))
+            }
+            WorkspaceTemplate::Portrait => {
+                data.output = format!("{}-portrait", data.output);
+                data.export_size = Size {
+                    width: source.width(),
+                    height: source.height(),
+                };
+                data.offset = Point {
+                    x: data.export_size.width as f32 * 0.5,
+                    y: data.export_size.height as f32 * 0.5,
+                };
+                let (command, frame) = ModifierTag::Frame.make_box(pdata, &data);
+                modifiers.push(frame);
+                command.map(|x| WorkspaceMessage::ModifierMessage(0, x))
+            }
+        };
+
+        let s = Self {
+            width_carrier: data.export_size.width.to_string(),
+            height_carrier: data.export_size.height.to_string(),
+            data,
+            modifiers,
+
+            cached_result: image_arc_to_handle(&source),
             source,
-            modifiers: Vec::new(),
             selected_modifier: 0,
             rendering: false,
-            width_carrier: "512".to_string(),
-            height_carrier: "512".to_string(),
-        }
+        };
+        (command, s)
     }
 
     /// Workspace messaging update loop
@@ -398,5 +429,39 @@ impl Workspace {
             return false;
         }
         true
+    }
+}
+
+/// Allows the program to define which default values should be used for the workspace and its modifiers
+#[derive(Default, Debug, Clone, Copy, PartialEq, Eq)]
+pub enum WorkspaceTemplate {
+    /// None means there should be no specialization for the workspace
+    #[default]
+    None,
+    Token,
+    Portrait,
+    // TODO Card,
+    // TODO Standee,
+}
+
+impl WorkspaceTemplate {
+    pub const ALL: [WorkspaceTemplate; 3] = [
+        WorkspaceTemplate::None,
+        WorkspaceTemplate::Token,
+        WorkspaceTemplate::Portrait,
+    ];
+}
+
+impl Display for WorkspaceTemplate {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(
+            f,
+            "{}",
+            match self {
+                WorkspaceTemplate::None => "None",
+                WorkspaceTemplate::Token => "Token",
+                WorkspaceTemplate::Portrait => "Portrait",
+            }
+        )
     }
 }
