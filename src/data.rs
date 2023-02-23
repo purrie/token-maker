@@ -22,6 +22,8 @@ pub struct ProgramData {
     pub available_frames: Vec<FrameImage>,
     /// Currently used color scheme for the UI
     pub theme: Theme,
+    /// Determines which layout the workspaces should be displayed with
+    pub layout: Layout,
 }
 
 /// Messages for customizing the program settings
@@ -29,6 +31,7 @@ pub struct ProgramData {
 pub enum ProgramDataMessage {
     /// Sets a new theme
     SetTheme(Theme),
+    SetLayout(Layout),
 }
 
 impl ProgramData {
@@ -39,10 +42,10 @@ impl ProgramData {
             row![
                 horizontal_space(Length::Fill),
                 text("Theme: "),
-                radio("Light", Theme::Light, Some(self.theme.clone()), |x| {
+                radio("Light", Theme::Light, Some(self.theme), |x| {
                     ProgramDataMessage::SetTheme(x)
                 }),
-                radio("Dark", Theme::Dark, Some(self.theme.clone()), |x| {
+                radio("Dark", Theme::Dark, Some(self.theme), |x| {
                     ProgramDataMessage::SetTheme(x)
                 }),
                 horizontal_space(Length::Fill),
@@ -50,9 +53,21 @@ impl ProgramData {
             .spacing(4)
             .width(Length::Fill)
             .align_items(Alignment::Center),
+            row![
+                horizontal_space(Length::Fill),
+                text("Workspace Layout: "),
+                radio("Parallel", Layout::Parallel, Some(self.layout), |x| {
+                    ProgramDataMessage::SetLayout(x)
+                }),
+                radio("Tabs", Layout::Stacking(0), Some(self.layout), |x| {
+                    ProgramDataMessage::SetLayout(x)
+                }),
+                horizontal_space(Length::Fill),
+            ],
             vertical_space(Length::Fill),
         ]
         .align_items(Alignment::Center)
+        .spacing(4)
         .width(Length::Fill)
         .height(Length::Fill)
         .into()
@@ -65,8 +80,22 @@ impl ProgramData {
                 self.theme = t;
                 Command::none()
             }
+            ProgramDataMessage::SetLayout(l) => {
+                self.layout = l;
+                Command::none()
+            }
         }
     }
+}
+
+/// Provides instruction as to how workspaces should be laid out
+#[derive(Debug, Default, Clone, Copy, PartialEq, Eq)]
+pub enum Layout {
+    /// One next to another
+    #[default]
+    Parallel,
+    /// One at a time in tabs
+    Stacking(usize),
 }
 
 pub struct WorkspaceData {

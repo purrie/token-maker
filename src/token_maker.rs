@@ -10,7 +10,7 @@ use iced::{
     Theme,
 };
 
-use crate::data::{load_frames, FrameImage, ProgramData, ProgramDataMessage};
+use crate::data::{load_frames, FrameImage, Layout, ProgramData, ProgramDataMessage};
 use crate::file_browser::{Browser, BrowserOperation, BrowsingResult, Target};
 use crate::image::{image_arc_to_handle, RgbaImage};
 use crate::workspace::{Workspace, WorkspaceMessage, WorkspaceTemplate};
@@ -44,6 +44,8 @@ pub enum Message {
     Workspace(usize, WorkspaceMessage),
     /// Request to close specified workspace
     WorkspaceClose(usize),
+    /// Selects which workspace should be shown to the user in stacking layout
+    WorkspaceSelect(usize),
     /// Request to create a new workspace and copy image used by other workspace as the base for it
     WorkspaceNewFromSource(usize),
     /// Sets default workspace template to use for new workspaces
@@ -195,9 +197,7 @@ impl Application for TokenMaker {
                 self.operation = Mode::Settings;
                 Command::none()
             }
-            Message::SettingsMessage(x) => {
-                self.data.update(x).map(|x| Message::SettingsMessage(x))
-            }
+            Message::SettingsMessage(x) => self.data.update(x).map(|x| Message::SettingsMessage(x)),
             Message::WorkspaceClose(index) => {
                 if self.workspaces.len() > index {
                     self.workspaces.remove(index);
@@ -205,6 +205,10 @@ impl Application for TokenMaker {
                         self.operation = Mode::CreateWorkspace;
                     }
                 }
+                Command::none()
+            }
+            Message::WorkspaceSelect(i) => {
+                self.data.layout = Layout::Stacking(i);
                 Command::none()
             }
             Message::Workspace(index, message) => {
@@ -241,8 +245,8 @@ impl Application for TokenMaker {
         let top_bar = self.top_bar();
         let ui = match self.operation {
             Mode::FileBrowser => self.data.file.view().map(|x| Message::FileBrowser(x)),
-            Mode::CreateWorkspace => self.workspace_add_view().into(),
-            Mode::Workspace => self.workspace_view().into(),
+            Mode::CreateWorkspace => self.workspace_add_view(),
+            Mode::Workspace => self.workspace_view(),
             Mode::Settings => self.settings_view(),
         };
         let ui = col![top_bar, ui].height(Length::Fill).width(Length::Fill);
@@ -279,6 +283,11 @@ impl TokenMaker {
             Workspace::new(name, image, &self.data, self.new_workspace_template);
         let i = self.workspaces.len();
         let command = command.map(move |x| Message::Workspace(i, x));
+
+        // Switching to a new tab if the layout is stacking
+        if matches!(self.data.layout, Layout::Stacking(_)) {
+            self.data.layout = Layout::Stacking(i)
+        }
         self.workspaces.push(new_workspace);
         command
     }
@@ -324,26 +333,51 @@ impl TokenMaker {
         self.data.view().map(|x| Message::SettingsMessage(x))
     }
     /// Constructs UI for displaying all workspaces
-    fn workspace_view(&self) -> Row<Message, Renderer> {
-        Row::with_children(
-            self.workspaces
-                .iter()
-                .enumerate()
-                .fold(Vec::new(), |mut c, (i, x)| {
-                    c.push(x.view(&self.data).map(move |x| {
-                        match &x {
-                            // Handling requests sent from workspace to the application
-                            WorkspaceMessage::Close => Message::WorkspaceClose(i),
-                            // only specific requests are considered for application, others are routed back to the workspace
-                            _ => Message::Workspace(i, x),
-                        }
-                    }));
-                    c
-                }),
-        )
+    fn workspace_view(&self) -> Element<Message, Renderer> {
+        // Handles converting the workspace message into program message
+        macro_rules! event {
+            ($ev:expr, $i:expr) => {
+                match &$ev {
+                    // Handling requests sent from workspace to the application
+                    WorkspaceMessage::Close => Message::WorkspaceClose($i),
+                    // only specific requests are considered for application, others are routed back to the workspace
+                    _ => Message::Workspace($i, $ev),
+                }
+            };
+        }
+
+        // Different drawings for different layouts
+        match self.data.layout {
+            Layout::Parallel => {
+                container(Row::with_children(self.workspaces.iter().enumerate().fold(
+                    Vec::new(),
+                    |mut c, (i, x)| {
+                        c.push(x.view(&self.data).map(move |x| event!(x, i)));
+                        c
+                    },
+                )))
+            }
+            Layout::Stacking(i) => {
+                let ui = self.workspaces.get(i).unwrap();
+                let ui = ui.view(&self.data).map(move |x| event!(x, i));
+                container(col![
+                    (0..self.workspaces.len()).fold(
+                        row![text("Workspaces: ")]
+                            .spacing(2)
+                            .align_items(Alignment::Center),
+                        |r, i| r.push(
+                            button(text(i.to_string())).on_press(Message::WorkspaceSelect(i))
+                        )
+                    ),
+                    ui
+                ])
+            }
+        }
         .width(Length::Fill)
         .height(Length::Fill)
+        .into()
     }
+
     /// Constructs UI for creating a new workspace
     fn workspace_add_view(&self) -> Element<Message, Renderer> {
         let templates = col![
