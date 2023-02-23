@@ -2,3 +2,21 @@
 
 * About
 Goal of this project is to create a fully functional program for making tokens, cards, figurines and similar art for use in TTRPG context.
+
+The program is WIP and not yet ready to be used to make any assets.
+
+* License
+Token Maker
+Copyright (C) 2023 Purrie
+
+This program is free software: you can redistribute it and/or modify
+it under the terms of the GNU General Public License as published by
+the Free Software Foundation, version 2 of the License.
+
+This program is distributed in the hope that it will be useful,
+but WITHOUT ANY WARRANTY; without even the implied warranty of
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+GNU General Public License for more details.
+
+You should have received a copy of the GNU General Public License
+along with this program.  If not, see <http://www.gnu.org/licenses/>.

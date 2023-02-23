@@ -1,0 +1,153 @@
+#+title: Roadmap
+
+This document contains ideas and goals for the project as well as description of progress for each. Entries closer to the top can be considered of higher priority for current development.
+
+* Settings
+- Choose color schemes
+- Choose layout between divided space and tabs for workspaces
+- Naming conventions
+  This should give the user ability to set naming convention for different templates so user can add prefix, postfix or anything in between to the name for each template
+
+* Cache
+Program needs to save cache with most recently used settings for workspaces, with support for templates. Cache needs to be saved for modifiers as well.
+
+Values for program itself should be cached too.
+
+This will likely be HashMap<ID, HashMap<String, String>> sort of structure where each part of the program would manage its own hashmap of things to be saved or loaded during update cycles. The final values for the hashmap could be an enum instead of a string. I think the keys can stay as some form of strings to not overcomplicate stuff.
+
+* Sanity Checks
+Things to remember for later, don't bother for now.
+
+- Export button should become red if any workspace points to a file that already exist
+- Export button should become unclickable if any workspace has the same export name as another one
+- Ensure users can't export images with invald or problematic characters: * . " / \ [ ] : ; | , & = + $ ? % # and spaces, basically mostly ascii and numbers should be allowed with - or _ for breaks, ideally all lower case.
+
+* Bugs
+- Trackpad doesn't release when the button is released off its area.
+
+* Global project name
+Aside from global path, user should be able to specify prefix, and possibly postfix for all exports so the individual workspace names are used mostly as distinguishers between the type
+
+* Frame maker
+Need a workspace mode which would be for making frames, probably with its own template. Tho, to signify that this mode is for making assets for the program itself, it could be a better idea to not shove it into workspaces since those are for making tokens and such. It could also be used for making decorations.
+
+Then art can be created
+
+* Art
+** Frame Art
+- Round frames
+- Square frames
+- Pentagonal frames
+- Hexagonal frames
+- Turned hexagonal frames
+- Octagonal frames
+
+** Card Art
+
+** Border frames
+For portraits
+
+** Decorations
+Various minor icons that can be added onto the image
+
+
+* Modifiers
+Bonus points if modifiers could be applied only to specified part of the image
+
+** Reordering
+The UI needs to offer an easy way to reorder modifiers
+
+** Backgrounds
+An image could be moved out of the frame of the final result, user should have ability to specify a color or image to use for background.
+
+** Alpha paint
+Modifier for adjusting alpha on the image
+
+** Color paint
+Basic color adjust modifier to paint simple things so you don't have to go through a painting program if you just want to recolor someone's eyes and similar minor adjustments
+
+** IDEA Image compositing
+Would it be useful to have an ability to combine multiple images into one token/card/portrait? This could be reaching outside the scope of the program tho.
+
+** Auto alpha
+Inspired by my SL shop thumbnail maker material I've made. User should have ability to specify which color to auto alpha out for images that have solid or mostly solid color background.
+
+** Filters
+Stuff for blurs, glows, color shifts and so on.
+
+** Transforms
+Ability to scale, rotate or move image through a modifier
+
+** DONE Frames
+frame modifier with ability to mask out area outside the frame
+
+** Decorations
+Additional icons and other stuff that user can throw into the image, adding simple decorations.
+
+** Text
+There should be ability to add text to the token or card. This crate seems like could be helpful here: https://crates.io/crates/text-to-png/0.2.0
+
+** Unalpha
+Some nice looking tokens support parts of the image going outside of the token frame, overriding its alpha. Would be nice to have that functionality. I imagine it as giving the user a paint brush which he would paint the picture with. Any part painted over of the picture would go over the frame and would not be masked out by the frame.
+
+The issue with this one is cyclic dependency. Or ability to lock pixels so next modifiers don't override them.
+
+This could be implemented as a mask for modifiers since more than just a frame could benefit from being able to limit its effects to specific parts of the image. Counterargument here is that this is a specialized case where painting would conform to visible parts of the image rather than to the brush. ( I think this one is my favorite since a lot of modifiers would benefit from ability to specify which parts of the image they affect and how much. )
+
+This could be implemented if the ImageOperations would take both working image and source image for the operation so the modifier could copy parts of the image from the source even when being placed as the last modifier
+
+This could be implemented if there was a way for modifiers to store data that would be accessible to other modifiers down the line. There could be a hook modifier which would provide data for later modifiers. Something similar as what exists in Substance Painter
+
+* Prettification
+Sometimes after making enough progress, it would be a good idea to start styling the program so it doesn't look like trash.
+
+* TODO Workspace Templates
+Just a way to quickly add and set up the workspace with basic defaults for specific purpose
+** DONE Token
+  Image within round/square/hexagonal frame
+** DONE Portrait
+  Image with or without border frame
+** Card
+  Image with big frame and space for text
+** Standee
+  Image with alpha masked background and outline in customizable color
+
+This should be both a menu or set of buttons that will quickly add a workspace with selected template using the image loaded in the last workspace, as well as a set of choices in the regular new workspace screen to quickly set it up after loading the image.
+
+* Image Source
+** URL source
+User should be able to use url to obtain the image
+
+** Paste source
+copy pasting image into the program
+
+** Drag and drop support
+
+* File browser
+- Need to implement a way to have multiple file extension filters at the same time to properly display all supported image formats when opening a file
+- Bookmarks for easier navigation
+- Image preview area to allow user to see the selected image file
+
+* IDEA Screen capture
+Would be cool to have built in screen capture tool.
+
+* IDEA Animations
+Support for creating animated tokens
+
+Could be done by animating values of filters, or having a collection of filters for each key frame
+
+* IDEA Project Saving
+Once I implement animations, it will probably be a good idea to also implement a way of saving the project so the work is not lost if someone wants to tweak the animation.
+
+* DONE Adding Workspaces
+Adding should be done through a button, which will add a faux workspace in which user will be able to choose either one of the loaded images from other workspaces or load a new one as a starting point
+
+* DONE Layer support
+Creating separate workflows for different outputs seems like unnecessary work. I think creating a layer workflow similar to painting programs would work best for supporting different output targets like tokens or cards.
+
+Important to note is that this while there will be painting like features, painting isn't the goal of this program. Layers should work in a way that makes it easy to work with to create tokens, which I imagine is different than how it works in regular painting programs.
+
+Layers should also make it easier to implement other features I want, serving a role of containers for modifiers, transformations and so on.
+
+** DONE Properties
+Each layer could have its own properties, those need to be displayed in most user friendly manner.
