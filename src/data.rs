@@ -1,6 +1,7 @@
+use std::collections::HashMap;
 use std::{fs::read_dir, path::PathBuf, sync::Arc};
 
-use iced::widget::{column as col, horizontal_space, radio, row, text, vertical_space};
+use iced::widget::{column as col, horizontal_space, radio, row, text, text_input, vertical_space};
 use iced::{Alignment, Command, Element, Length, Point, Renderer, Size};
 use iced_native::image::Handle;
 
@@ -24,6 +25,8 @@ pub struct ProgramData {
     pub theme: Theme,
     /// Determines which layout the workspaces should be displayed with
     pub layout: Layout,
+    /// Naming conventions to use in the program
+    pub naming: NamingConvention,
 }
 
 /// Messages for customizing the program settings
@@ -32,6 +35,8 @@ pub enum ProgramDataMessage {
     /// Sets a new theme
     SetTheme(Theme),
     SetLayout(Layout),
+    SetNamingConvention(WorkspaceTemplate, String),
+    SetProjectName(String),
 }
 
 impl ProgramData {
@@ -64,6 +69,61 @@ impl ProgramData {
                 }),
                 horizontal_space(Length::Fill),
             ],
+            row![
+                horizontal_space(Length::Fill),
+                text("Naming Convention: "),
+                col![
+                    vertical_space(10),
+                    row![
+                        text("Default: ").width(Length::Fill),
+                        text_input(
+                            "Default Name",
+                            self.naming
+                                .convention
+                                .get(&WorkspaceTemplate::None)
+                                .unwrap(),
+                            |x| ProgramDataMessage::SetNamingConvention(WorkspaceTemplate::None, x)
+                        )
+                        .width(Length::FillPortion(5)),
+                    ]
+                    .align_items(Alignment::Center),
+                    row![
+                        text("Token: ").width(Length::Fill),
+                        text_input(
+                            "Default Name",
+                            self.naming
+                                .convention
+                                .get(&WorkspaceTemplate::Token)
+                                .unwrap(),
+                            |x| ProgramDataMessage::SetNamingConvention(
+                                WorkspaceTemplate::Token,
+                                x
+                            )
+                        )
+                        .width(Length::FillPortion(5)),
+                    ]
+                    .align_items(Alignment::Center),
+                    row![
+                        text("Portrait: ").width(Length::Fill),
+                        text_input(
+                            "Default Name",
+                            self.naming
+                                .convention
+                                .get(&WorkspaceTemplate::Portrait)
+                                .unwrap(),
+                            |x| ProgramDataMessage::SetNamingConvention(
+                                WorkspaceTemplate::Portrait,
+                                x
+                            )
+                        )
+                        .width(Length::FillPortion(5)),
+                    ]
+                    .align_items(Alignment::Center)
+                ]
+                .width(Length::FillPortion(2)),
+                horizontal_space(Length::Fill)
+            ]
+            .spacing(5),
             vertical_space(Length::Fill),
         ]
         .align_items(Alignment::Center)
@@ -84,6 +144,48 @@ impl ProgramData {
                 self.layout = l;
                 Command::none()
             }
+            ProgramDataMessage::SetNamingConvention(template, text) => {
+                // TODO make sure the text is valid
+                self.naming.convention.insert(template, text);
+                Command::none()
+            }
+            ProgramDataMessage::SetProjectName(n) => {
+                self.naming.project_name = n;
+                Command::none()
+            }
+        }
+    }
+}
+
+/// Structure holds information about default values for names used throughout the program
+#[derive(Debug)]
+pub struct NamingConvention {
+    pub convention: HashMap<WorkspaceTemplate, String>,
+    pub project_name: String,
+}
+
+impl NamingConvention {
+    pub const KEYWORD_PROJECT: &str = "$project_name";
+}
+
+impl Default for NamingConvention {
+    fn default() -> Self {
+        let mut convention = HashMap::new();
+        convention.insert(
+            WorkspaceTemplate::None,
+            format!("{}", NamingConvention::KEYWORD_PROJECT),
+        );
+        convention.insert(
+            WorkspaceTemplate::Token,
+            format!("{}-token", NamingConvention::KEYWORD_PROJECT),
+        );
+        convention.insert(
+            WorkspaceTemplate::Portrait,
+            format!("{}-portrait", NamingConvention::KEYWORD_PROJECT),
+        );
+        Self {
+            convention,
+            project_name: String::from(""),
         }
     }
 }

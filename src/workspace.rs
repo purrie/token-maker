@@ -1,7 +1,6 @@
 use std::fmt::Display;
-use std::path::PathBuf;
+use std::sync::Arc;
 use std::time::Duration;
-use std::{path::Path, sync::Arc};
 
 use iced::{
     widget::{
@@ -12,7 +11,7 @@ use iced::{
 
 use iced_native::image::Data;
 
-use crate::data::{ProgramData, WorkspaceData};
+use crate::data::{NamingConvention, ProgramData, WorkspaceData};
 use crate::image::{image_arc_to_handle, image_to_handle, ImageFormat, ImageOperation, RgbaImage};
 use crate::modifier::{ModifierBox, ModifierMessage, ModifierOperation, ModifierTag};
 use crate::trackpad::Trackpad;
@@ -99,13 +98,11 @@ impl Workspace {
         let command = match template {
             WorkspaceTemplate::None => Command::none(),
             WorkspaceTemplate::Token => {
-                data.output = format!("{}-token", data.output);
                 let (command, frame) = ModifierTag::Frame.make_box(pdata, &data);
                 modifiers.push(frame);
                 command.map(|x| WorkspaceMessage::ModifierMessage(0, x))
             }
             WorkspaceTemplate::Portrait => {
-                data.output = format!("{}-portrait", data.output);
                 data.export_size = Size {
                     width: source.width(),
                     height: source.height(),
@@ -412,10 +409,17 @@ impl Workspace {
         r.spacing(5)
     }
 
-    pub fn export<P: AsRef<Path>>(&self, root: P) {
-        let mut path = PathBuf::from(root.as_ref());
-        path.push(&self.data.output);
+    /// Exports latest preview image to drive
+    pub fn export(&self, pdata: &ProgramData) {
+        let mut path = pdata.output.clone();
+        // Constructing the final name for the export
+        let name = self.data.output.replace(
+            NamingConvention::KEYWORD_PROJECT,
+            &pdata.naming.project_name,
+        );
+        path.push(name);
         path.set_extension(self.data.format.to_string());
+        // Produce the image
         let Data::Rgba { width, height, pixels } = self.cached_result.data() else {
             panic!("doesn't work!");
         };
@@ -433,7 +437,7 @@ impl Workspace {
 }
 
 /// Allows the program to define which default values should be used for the workspace and its modifiers
-#[derive(Default, Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Default, Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum WorkspaceTemplate {
     /// None means there should be no specialization for the workspace
     #[default]

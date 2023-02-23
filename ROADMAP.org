@@ -2,13 +2,7 @@
 
 This document contains ideas and goals for the project as well as description of progress for each. Entries closer to the top can be considered of higher priority for current development.
 
-* Settings
-- Choose color schemes
-- Choose layout between divided space and tabs for workspaces
-- Naming conventions
-  This should give the user ability to set naming convention for different templates so user can add prefix, postfix or anything in between to the name for each template
-
-* Cache
+* TODO Cache
 Program needs to save cache with most recently used settings for workspaces, with support for templates. Cache needs to be saved for modifiers as well.
 
 Values for program itself should be cached too.
@@ -21,12 +15,7 @@ Things to remember for later, don't bother for now.
 - Export button should become red if any workspace points to a file that already exist
 - Export button should become unclickable if any workspace has the same export name as another one
 - Ensure users can't export images with invald or problematic characters: * . " / \ [ ] : ; | , & = + $ ? % # and spaces, basically mostly ascii and numbers should be allowed with - or _ for breaks, ideally all lower case.
-
-* Bugs
-- Trackpad doesn't release when the button is released off its area.
-
-* Global project name
-Aside from global path, user should be able to specify prefix, and possibly postfix for all exports so the individual workspace names are used mostly as distinguishers between the type
+  + $ character should be allowed to be entered since it's used for keyword swapping, however, any characters leftover after swapping the keywords should be removed.
 
 * Frame maker
 Need a workspace mode which would be for making frames, probably with its own template. Tho, to signify that this mode is for making assets for the program itself, it could be a better idea to not shove it into workspaces since those are for making tokens and such. It could also be used for making decorations.
@@ -50,6 +39,17 @@ For portraits
 ** Decorations
 Various minor icons that can be added onto the image
 
+* Image Source
+** URL source
+User should be able to use url to obtain the image
+
+** Paste source
+copy pasting image into the program
+
+** Drag and drop support
+
+* Bugs
+- Trackpad doesn't release when the button is released off its area.
 
 * Modifiers
 Bonus points if modifiers could be applied only to specified part of the image
@@ -101,6 +101,9 @@ This could be implemented if there was a way for modifiers to store data that wo
 * Prettification
 Sometimes after making enough progress, it would be a good idea to start styling the program so it doesn't look like trash.
 
+* Manual
+The program itself should have tooltips and other ways of instructing the user without needing to read through the actual manual for basic usage. The principle here is that an user should be able to install the program, turn it on and be able to produce a basic result with little to no external instruction.
+
 * TODO Workspace Templates
 Just a way to quickly add and set up the workspace with basic defaults for specific purpose
 ** DONE Token
@@ -113,15 +116,6 @@ Just a way to quickly add and set up the workspace with basic defaults for speci
   Image with alpha masked background and outline in customizable color
 
 This should be both a menu or set of buttons that will quickly add a workspace with selected template using the image loaded in the last workspace, as well as a set of choices in the regular new workspace screen to quickly set it up after loading the image.
-
-* Image Source
-** URL source
-User should be able to use url to obtain the image
-
-** Paste source
-copy pasting image into the program
-
-** Drag and drop support
 
 * File browser
 - Need to implement a way to have multiple file extension filters at the same time to properly display all supported image formats when opening a file
@@ -138,6 +132,15 @@ Could be done by animating values of filters, or having a collection of filters 
 
 * IDEA Project Saving
 Once I implement animations, it will probably be a good idea to also implement a way of saving the project so the work is not lost if someone wants to tweak the animation.
+
+* DONE Settings
+- Choose color schemes
+- Choose layout between divided space and tabs for workspaces
+- Naming conventions
+  This should give the user ability to set naming convention for different templates so user can add prefix, postfix or anything in between to the name for each template
+
+* DONE Global project name
+Aside from global path, user should be able to specify prefix, and possibly postfix for all exports so the individual workspace names are used mostly as distinguishers between the type
 
 * DONE Adding Workspaces
 Adding should be done through a button, which will add a faux workspace in which user will be able to choose either one of the loaded images from other workspaces or load a new one as a starting point

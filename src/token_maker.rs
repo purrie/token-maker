@@ -3,7 +3,7 @@ use std::sync::Arc;
 
 use iced::widget::{
     button, column as col, container, horizontal_space, image as picture, radio, row, text,
-    tooltip, vertical_space, Row,
+    text_input, tooltip, vertical_space, Row,
 };
 use iced::{
     executor, Alignment, Application, Command, ContentFit, Element, Length, Renderer, Subscription,
@@ -203,6 +203,7 @@ impl Application for TokenMaker {
                     self.workspaces.remove(index);
                     if self.workspaces.len() == 0 {
                         self.operation = Mode::CreateWorkspace;
+                        self.data.naming.project_name = String::from("");
                     }
                 }
                 Command::none()
@@ -233,9 +234,7 @@ impl Application for TokenMaker {
                 Command::none()
             }
             Message::Export => {
-                self.workspaces
-                    .iter()
-                    .for_each(|x| x.export(&self.data.output));
+                self.workspaces.iter().for_each(|x| x.export(&self.data));
                 Command::none()
             }
         }
@@ -279,9 +278,21 @@ impl Application for TokenMaker {
 impl TokenMaker {
     /// This function adds a new workspace with given data
     fn add_workspace(&mut self, name: String, image: Arc<RgbaImage>) -> Command<Message> {
+        let i = self.workspaces.len();
+        // Updating project name if we have nothing open
+        if i == 0 && self.data.naming.project_name.len() == 0 {
+            self.data.naming.project_name = name;
+        }
+        let name = self
+            .data
+            .naming
+            .convention
+            .get(&self.new_workspace_template)
+            .unwrap()
+            .clone();
+
         let (command, new_workspace) =
             Workspace::new(name, image, &self.data, self.new_workspace_template);
-        let i = self.workspaces.len();
         let command = command.map(move |x| Message::Workspace(i, x));
 
         // Switching to a new tab if the layout is stacking
@@ -317,12 +328,18 @@ impl TokenMaker {
                 button("Save")
             },
             horizontal_space(Length::Fill),
+            text("Project Name: "),
+            text_input("Project Name", &self.data.naming.project_name, |x| {
+                Message::SettingsMessage(ProgramDataMessage::SetProjectName(x))
+            }),
+            horizontal_space(Length::Fill),
             if self.operation != Mode::Settings {
                 button("Settings").on_press(Message::DisplaySettings)
             } else {
                 button("Workspaces").on_press(Message::DisplayWorkspaces)
             },
         ]
+        .align_items(Alignment::Center)
         .spacing(2)
         .width(Length::Fill)
         .height(Length::Shrink)
