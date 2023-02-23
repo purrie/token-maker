@@ -1,11 +1,13 @@
 use std::{fs::read_dir, path::PathBuf, sync::Arc};
 
-use iced::{Point, Size};
+use iced::widget::{column as col, horizontal_space, radio, row, text, vertical_space};
+use iced::{Alignment, Command, Element, Length, Point, Renderer, Size};
 use iced_native::image::Handle;
 
 use crate::{
     file_browser::Browser,
     image::{image_to_handle, GrayscaleImage, ImageFormat, RgbaImage},
+    style::Theme,
     workspace::WorkspaceTemplate,
 };
 
@@ -18,6 +20,53 @@ pub struct ProgramData {
     pub output: PathBuf,
     /// Collection of frames loaded into the program
     pub available_frames: Vec<FrameImage>,
+    /// Currently used color scheme for the UI
+    pub theme: Theme,
+}
+
+/// Messages for customizing the program settings
+#[derive(Debug, Clone)]
+pub enum ProgramDataMessage {
+    /// Sets a new theme
+    SetTheme(Theme),
+}
+
+impl ProgramData {
+    /// Draws UI for customizing program settings
+    pub fn view(&self) -> Element<ProgramDataMessage, Renderer> {
+        col![
+            vertical_space(Length::Fill),
+            row![
+                horizontal_space(Length::Fill),
+                text("Theme: "),
+                radio("Light", Theme::Light, Some(self.theme.clone()), |x| {
+                    ProgramDataMessage::SetTheme(x)
+                }),
+                radio("Dark", Theme::Dark, Some(self.theme.clone()), |x| {
+                    ProgramDataMessage::SetTheme(x)
+                }),
+                horizontal_space(Length::Fill),
+            ]
+            .spacing(4)
+            .width(Length::Fill)
+            .align_items(Alignment::Center),
+            vertical_space(Length::Fill),
+        ]
+        .align_items(Alignment::Center)
+        .width(Length::Fill)
+        .height(Length::Fill)
+        .into()
+    }
+
+    /// Updates settings according to the message
+    pub fn update(&mut self, message: ProgramDataMessage) -> Command<ProgramDataMessage> {
+        match message {
+            ProgramDataMessage::SetTheme(t) => {
+                self.theme = t;
+                Command::none()
+            }
+        }
+    }
 }
 
 pub struct WorkspaceData {

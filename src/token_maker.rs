@@ -2,15 +2,15 @@ use std::collections::HashSet;
 use std::sync::Arc;
 
 use iced::widget::{
-    button, column as col, container, image as picture, radio, row, text, tooltip, vertical_space,
-    Row,
+    button, column as col, container, horizontal_space, image as picture, radio, row, text,
+    tooltip, vertical_space, Row,
 };
 use iced::{
     executor, Alignment, Application, Command, ContentFit, Element, Length, Renderer, Subscription,
     Theme,
 };
 
-use crate::data::{load_frames, FrameImage, ProgramData};
+use crate::data::{load_frames, FrameImage, ProgramData, ProgramDataMessage};
 use crate::file_browser::{Browser, BrowserOperation, BrowsingResult, Target};
 use crate::image::{image_arc_to_handle, RgbaImage};
 use crate::workspace::{Workspace, WorkspaceMessage, WorkspaceTemplate};
@@ -33,18 +33,23 @@ pub enum Message {
     LookForOutputFolder,
     /// Message related to the file browser
     FileBrowser(BrowserOperation),
+    /// Request to display settings
+    DisplaySettings,
+    /// Opens UI for adding a new workspace
+    DisplayWorkspaceCreation,
+    /// Request to display currently active workspaces.
+    /// If none were created so far, it displays workspace creation screen
+    DisplayWorkspaces,
     /// Message related to the workspace
     Workspace(usize, WorkspaceMessage),
     /// Request to close specified workspace
     WorkspaceClose(usize),
     /// Request to create a new workspace and copy image used by other workspace as the base for it
     WorkspaceNewFromSource(usize),
-    /// Opens UI for adding a new workspace
-    WorkspaceAdd,
-    /// Cancel adding a new workspace
-    WorkspaceAddCancel,
     /// Sets default workspace template to use for new workspaces
     WorkspaceTemplate(WorkspaceTemplate),
+    /// Message related to program settings
+    SettingsMessage(ProgramDataMessage),
     /// Result of a task which loads in all the frames
     LoadedFrames(Vec<FrameImage>),
     /// Error message
@@ -54,7 +59,8 @@ pub enum Message {
     Export,
 }
 
-#[derive(Debug, Default)]
+/// Describes which mode the program should operate in
+#[derive(Debug, Default, PartialEq)]
 pub enum Mode {
     /// This mode instructs the program to display workspace creation UI
     #[default]
@@ -63,6 +69,8 @@ pub enum Mode {
     Workspace,
     /// Displays the file browser
     FileBrowser,
+    /// Display UI for customizing how the program works or looks
+    Settings,
 }
 
 impl Application for TokenMaker {
@@ -100,6 +108,9 @@ impl Application for TokenMaker {
         )
     }
 
+    fn theme(&self) -> Self::Theme {
+        self.data.theme.into()
+    }
     fn title(&self) -> String {
         String::from("Token Maker")
     }
@@ -168,13 +179,24 @@ impl Application for TokenMaker {
                 self.operation = Mode::Workspace;
                 command
             }
-            Message::WorkspaceAdd => {
+            Message::DisplayWorkspaceCreation => {
                 self.operation = Mode::CreateWorkspace;
                 Command::none()
             }
-            Message::WorkspaceAddCancel => {
-                self.operation = Mode::Workspace;
+            Message::DisplayWorkspaces => {
+                if self.workspaces.len() > 0 {
+                    self.operation = Mode::Workspace;
+                } else {
+                    self.operation = Mode::CreateWorkspace;
+                }
                 Command::none()
+            }
+            Message::DisplaySettings => {
+                self.operation = Mode::Settings;
+                Command::none()
+            }
+            Message::SettingsMessage(x) => {
+                self.data.update(x).map(|x| Message::SettingsMessage(x))
             }
             Message::WorkspaceClose(index) => {
                 if self.workspaces.len() > index {
@@ -221,6 +243,7 @@ impl Application for TokenMaker {
             Mode::FileBrowser => self.data.file.view().map(|x| Message::FileBrowser(x)),
             Mode::CreateWorkspace => self.workspace_add_view().into(),
             Mode::Workspace => self.workspace_view().into(),
+            Mode::Settings => self.settings_view(),
         };
         let ui = col![top_bar, ui].height(Length::Fill).width(Length::Fill);
         container(ui)
@@ -273,7 +296,7 @@ impl TokenMaker {
     /// Main program UI located at the top of the window
     fn top_bar(&self) -> Element<Message, Renderer> {
         row![
-            button("Add").on_press(Message::WorkspaceAdd),
+            button("Add").on_press(Message::DisplayWorkspaceCreation),
             tooltip(
                 button("Set Output Folder").on_press(Message::LookForOutputFolder),
                 format!("Current output: {}", self.data.output.to_string_lossy()),
@@ -284,11 +307,21 @@ impl TokenMaker {
             } else {
                 button("Save")
             },
+            horizontal_space(Length::Fill),
+            if self.operation != Mode::Settings {
+                button("Settings").on_press(Message::DisplaySettings)
+            } else {
+                button("Workspaces").on_press(Message::DisplayWorkspaces)
+            },
         ]
         .spacing(2)
         .width(Length::Fill)
         .height(Length::Shrink)
         .into()
+    }
+    /// Constructs UI for customizing program settings
+    fn settings_view(&self) -> Element<Message, Renderer> {
+        self.data.view().map(|x| Message::SettingsMessage(x))
     }
     /// Constructs UI for displaying all workspaces
     fn workspace_view(&self) -> Row<Message, Renderer> {
@@ -336,7 +369,7 @@ impl TokenMaker {
             // sourcers allow user to use already loaded image for the new frame
             let sourcers = col![
                 row![
-                    button("Cancel").on_press(Message::WorkspaceAddCancel),
+                    button("Cancel").on_press(Message::DisplayWorkspaces),
                     text("Source from other workspace:"),
                 ]
                 .spacing(2),

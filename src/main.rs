@@ -5,6 +5,7 @@ mod modifier;
 mod token_maker;
 mod trackpad;
 mod workspace;
+mod style;
 
 use iced::{Application, Settings};
 use token_maker::TokenMaker;
