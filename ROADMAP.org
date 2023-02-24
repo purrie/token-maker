@@ -6,7 +6,6 @@ This document contains ideas and goals for the project as well as description of
 Things to remember for later, don't bother for now.
 
 - Export button should become red if any workspace points to a file that already exist
-- Export button should become unclickable if any workspace has the same export name as another one
 - Ensure users can't export images with invald or problematic characters: * . " / \ [ ] : ; | , & = + $ ? % # and spaces, basically mostly ascii and numbers should be allowed with - or _ for breaks, ideally all lower case.
   + $ character should be allowed to be entered since it's used for keyword swapping, however, any characters leftover after swapping the keywords should be removed.
 

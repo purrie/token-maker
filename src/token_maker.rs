@@ -306,7 +306,15 @@ impl TokenMaker {
         if self.workspaces.len() == 0 {
             return false;
         }
-        self.workspaces.iter().all(|x| x.can_save())
+        self.workspaces.iter().enumerate().all(|(ix, x)| {
+            x.can_save()
+                // tests if the output name of each workspace is unique
+                && self
+                    .workspaces
+                    .iter()
+                    .enumerate()
+                    .all(|(io, o)| io == ix || o.get_output_name() != x.get_output_name())
+        })
     }
     /// Main program UI located at the top of the window
     fn top_bar(&self) -> Element<Message, Renderer> {
