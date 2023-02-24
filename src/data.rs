@@ -167,20 +167,14 @@ impl ProgramData {
         match message {
             ProgramDataMessage::SetTheme(t) => {
                 self.theme = t;
-                self.cache.set(
-                    ProgramData::SETTINGS_ID,
-                    "theme".to_string(),
-                    self.theme.into(),
-                );
+                self.cache
+                    .set(ProgramData::SETTINGS_ID, "theme".to_string(), self.theme);
                 Command::none()
             }
             ProgramDataMessage::SetLayout(l) => {
                 self.layout = l;
-                self.cache.set(
-                    ProgramData::SETTINGS_ID,
-                    "layout".to_string(),
-                    self.layout.into(),
-                );
+                self.cache
+                    .set(ProgramData::SETTINGS_ID, "layout".to_string(), self.layout);
                 Command::none()
             }
             ProgramDataMessage::SetNamingConvention(template, text) => {
@@ -198,7 +192,7 @@ impl ProgramData {
 
 impl Drop for ProgramData {
     fn drop(&mut self) {
-        // saving cache for browser
+        // saving cache for browser, we do it here to not pollute the widget's module so it will be easier to extract it in case it's something worth using in another project
         let path = self.file.get_path().to_string_lossy().to_string();
         self.cache.set(
             "file-browser",
@@ -208,7 +202,7 @@ impl Drop for ProgramData {
         self.cache.set(
             ProgramData::SETTINGS_ID,
             "output".to_string(),
-            self.output.clone().into(),
+            self.output.clone(),
         );
     }
 }
@@ -265,11 +259,7 @@ impl NamingConvention {
     }
     /// Sets naming convention for specified template, saving it to cache as well
     pub fn set(&mut self, template: WorkspaceTemplate, name: String, cache: &mut Cache) {
-        cache.set(
-            Self::CACHE_ID,
-            template.get_id().to_string(),
-            name.clone().into(),
-        );
+        cache.set(Self::CACHE_ID, template.get_id().to_string(), name.clone());
         self.convention.insert(template, name);
     }
 }

@@ -113,7 +113,7 @@ impl Modifier for Frame {
                 pdata.cache.set(
                     "frame-modifier",
                     wdata.template.get_id().to_string(),
-                    f.name.clone().into(),
+                    f.name.clone(),
                 );
                 self.set_frame(f, wdata)
             }
@@ -223,6 +223,7 @@ impl Modifier for Frame {
 }
 
 impl Frame {
+    /// Sets the frame image to be used within the frame. It returns a task to resize the frame image to the same size as expected export size
     fn set_frame(&mut self, frame: &FrameImage, wdata: &WorkspaceData) -> Command<FrameMessage> {
         self.source = Some(frame.frame.clone());
         self.source_mask = frame.mask.clone();

@@ -2,14 +2,7 @@
 
 This document contains ideas and goals for the project as well as description of progress for each. Entries closer to the top can be considered of higher priority for current development.
 
-* TODO Cache
-Program needs to save cache with most recently used settings for workspaces, with support for templates. Cache needs to be saved for modifiers as well.
-
-Values for program itself should be cached too.
-
-This will likely be HashMap<ID, HashMap<String, String>> sort of structure where each part of the program would manage its own hashmap of things to be saved or loaded during update cycles. The final values for the hashmap could be an enum instead of a string. I think the keys can stay as some form of strings to not overcomplicate stuff.
-
-* Sanity Checks
+* TODO Sanity Checks
 Things to remember for later, don't bother for now.
 
 - Export button should become red if any workspace points to a file that already exist
@@ -21,6 +14,18 @@ Things to remember for later, don't bother for now.
 Need a workspace mode which would be for making frames, probably with its own template. Tho, to signify that this mode is for making assets for the program itself, it could be a better idea to not shove it into workspaces since those are for making tokens and such. It could also be used for making decorations.
 
 Then art can be created
+
+* Workspace Interface upgrade
+- Reorganize the top bar
+  + There are 3 major parts to it, workspace properties, list of modifiers and modifier properties.
+  + Laying it out in one row doesn't really work since everything gets squished.
+  + What would probably work is having two columns, one with workspace and modifier properties and one with the list of modifiers
+- Offset input so the user can manually input the offset when precision is needed
+  + Percentages or pixels in the input? Both?
+
+* Program Interface
+- Rename buttons to better represent their purpose
+- Make project name show up only when there's something loaded in
 
 * Art
 ** Frame Art
@@ -50,6 +55,7 @@ copy pasting image into the program
 
 * Bugs
 - Trackpad doesn't release when the button is released off its area.
+- There's no way to reset trackpad zoom level
 
 * Modifiers
 Bonus points if modifiers could be applied only to specified part of the image
@@ -86,6 +92,9 @@ Additional icons and other stuff that user can throw into the image, adding simp
 
 ** Text
 There should be ability to add text to the token or card. This crate seems like could be helpful here: https://crates.io/crates/text-to-png/0.2.0
+
+** Outline
+This one would be useful for standees
 
 ** Unalpha
 Some nice looking tokens support parts of the image going outside of the token frame, overriding its alpha. Would be nice to have that functionality. I imagine it as giving the user a paint brush which he would paint the picture with. Any part painted over of the picture would go over the frame and would not be masked out by the frame.
@@ -132,6 +141,13 @@ Could be done by animating values of filters, or having a collection of filters 
 
 * IDEA Project Saving
 Once I implement animations, it will probably be a good idea to also implement a way of saving the project so the work is not lost if someone wants to tweak the animation.
+
+* DONE Cache
+Program needs to save cache with most recently used settings for workspaces, with support for templates. Cache needs to be saved for modifiers as well.
+
+Values for program itself should be cached too.
+
+This will likely be HashMap<ID, HashMap<String, String>> sort of structure where each part of the program would manage its own hashmap of things to be saved or loaded during update cycles. The final values for the hashmap could be an enum instead of a string. I think the keys can stay as some form of strings to not overcomplicate stuff.
 
 * DONE Settings
 - Choose color schemes
