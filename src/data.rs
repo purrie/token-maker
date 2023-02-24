@@ -178,12 +178,11 @@ impl ProgramData {
                 Command::none()
             }
             ProgramDataMessage::SetNamingConvention(template, text) => {
-                // TODO make sure the text is valid
                 self.naming.set(template, text, &mut self.cache);
                 Command::none()
             }
             ProgramDataMessage::SetProjectName(n) => {
-                self.naming.project_name = n;
+                self.naming.project_name = sanitize_file_name(n);
                 Command::none()
             }
         }
@@ -259,6 +258,7 @@ impl NamingConvention {
     }
     /// Sets naming convention for specified template, saving it to cache as well
     pub fn set(&mut self, template: WorkspaceTemplate, name: String, cache: &mut Cache) {
+        let name = sanitize_file_name(name);
         cache.set(Self::CACHE_ID, template.get_id().to_string(), name.clone());
         self.convention.insert(template, name);
     }
@@ -299,6 +299,20 @@ impl Default for WorkspaceData {
             template: WorkspaceTemplate::None,
         }
     }
+}
+
+/// Removes any character from the string that could be problematic for use in file names.
+///
+/// The resulting string is all lowercase to prevent weirdness when using the results across different platforms.
+///
+/// Char `$` is purposefully omitted since it's used for variable names.
+/// Workspaces are responsible for removing those from the final file name.
+pub fn sanitize_file_name(name: String) -> String {
+    name.chars()
+        .map(|x| if x.is_whitespace() { '-' } else { x })
+        .filter(|x| x.is_alphanumeric() || *x == '-' || *x == '_' || *x == '$')
+        .map(|x| x.to_ascii_lowercase())
+        .collect()
 }
 
 /// Holds images prepared to be used as frames for tokens

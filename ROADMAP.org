@@ -2,13 +2,6 @@
 
 This document contains ideas and goals for the project as well as description of progress for each. Entries closer to the top can be considered of higher priority for current development.
 
-* TODO Sanity Checks
-Things to remember for later, don't bother for now.
-
-- Export button should become red if any workspace points to a file that already exist
-- Ensure users can't export images with invald or problematic characters: * . " / \ [ ] : ; | , & = + $ ? % # and spaces, basically mostly ascii and numbers should be allowed with - or _ for breaks, ideally all lower case.
-  + $ character should be allowed to be entered since it's used for keyword swapping, however, any characters leftover after swapping the keywords should be removed.
-
 * Frame maker
 Need a workspace mode which would be for making frames, probably with its own template. Tho, to signify that this mode is for making assets for the program itself, it could be a better idea to not shove it into workspaces since those are for making tokens and such. It could also be used for making decorations.
 
@@ -25,6 +18,9 @@ Then art can be created
 * Program Interface
 - Rename buttons to better represent their purpose
 - Make project name show up only when there's something loaded in
+- Export button should show a tooltip as to why it's disabled
+- Program should have a status bar or something to show log messages
+  + example would be to inform the user that image has been successfully exported
 
 * Art
 ** Frame Art
@@ -108,6 +104,8 @@ This could be implemented if there was a way for modifiers to store data that wo
 
 * Prettification
 Sometimes after making enough progress, it would be a good idea to start styling the program so it doesn't look like trash.
+
+- Export button should become red if any workspace points to a file that already exist
 
 * Manual
 The program itself should have tooltips and other ways of instructing the user without needing to read through the actual manual for basic usage. The principle here is that an user should be able to install the program, turn it on and be able to produce a basic result with little to no external instruction.

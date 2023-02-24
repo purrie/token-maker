@@ -12,7 +12,7 @@ use iced::{
 use iced_native::image::Data;
 use serde::{Deserialize, Serialize};
 
-use crate::data::{NamingConvention, ProgramData, WorkspaceData};
+use crate::data::{sanitize_file_name, NamingConvention, ProgramData, WorkspaceData};
 use crate::image::{image_arc_to_handle, image_to_handle, ImageFormat, ImageOperation, RgbaImage};
 use crate::modifier::{ModifierBox, ModifierMessage, ModifierOperation, ModifierTag};
 use crate::trackpad::Trackpad;
@@ -140,7 +140,7 @@ impl Workspace {
     ) -> Command<WorkspaceMessage> {
         match msg {
             WorkspaceMessage::OutputNameChange(s) => {
-                self.data.output = s;
+                self.data.output = sanitize_file_name(s);
                 self.update_modifiers(pdata)
             }
             WorkspaceMessage::SetOutputWidth(w) => {
@@ -414,10 +414,14 @@ impl Workspace {
     pub fn export(&self, pdata: &ProgramData) {
         let mut path = pdata.output.clone();
         // Constructing the final name for the export
-        let name = self.data.output.replace(
-            NamingConvention::KEYWORD_PROJECT,
-            &pdata.naming.project_name,
-        );
+        let name = self
+            .data
+            .output
+            .replace(
+                NamingConvention::KEYWORD_PROJECT,
+                &pdata.naming.project_name,
+            )
+            .replace('$', "");
         path.push(name);
         path.set_extension(self.data.format.to_string());
         // Produce the image
@@ -426,14 +430,15 @@ impl Workspace {
         };
         image::save_buffer(path, pixels, *width, *height, image::ColorType::Rgba8).unwrap();
     }
+
+    /// Tests whatever the workspace can save its result to drive
     pub fn can_save(&self) -> bool {
+        // Can't save while the image is rendering
         if self.rendering {
             return false;
         }
-        if self.data.output.len() < 1 {
-            return false;
-        }
-        true
+        // To be valid, the name must have at least one alphanumeric character
+        self.data.output.chars().any(|x| x.is_alphanumeric())
     }
 }
 
