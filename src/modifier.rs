@@ -74,8 +74,8 @@ pub trait Modifier {
     fn properties_update(
         &mut self,
         message: Self::Message,
-        pdata: &ProgramData,
-        wdata: &WorkspaceData,
+        pdata: &mut ProgramData,
+        wdata: &mut WorkspaceData,
     ) -> Command<Self::Message> {
         Command::none()
     }
@@ -176,7 +176,7 @@ macro_rules! make_modifier {
                 }
             }
             /// Handles messages sent from modifier UI
-            pub fn properties_update(&mut self, mess: ModifierMessage, pdata: &ProgramData, wdata: &WorkspaceData) -> Command<ModifierMessage> {
+            pub fn properties_update(&mut self, mess: ModifierMessage, pdata: &mut ProgramData, wdata: &mut WorkspaceData) -> Command<ModifierMessage> {
                 match self {
                     $(
                         ModifierBox::$md(x) => x.properties_update(mess.into(), pdata, wdata).map(|x| x.into()),

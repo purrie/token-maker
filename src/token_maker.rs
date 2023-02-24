@@ -10,13 +10,13 @@ use iced::{
     Theme,
 };
 
-use crate::data::{load_frames, FrameImage, Layout, ProgramData, ProgramDataMessage};
-use crate::file_browser::{Browser, BrowserOperation, BrowsingResult, Target};
+use crate::data::{load_frames, FrameImage, ProgramData, ProgramDataMessage};
+use crate::file_browser::{BrowserOperation, BrowsingResult, Target};
 use crate::image::{image_arc_to_handle, RgbaImage};
+use crate::style::Layout;
 use crate::workspace::{Workspace, WorkspaceMessage, WorkspaceTemplate};
 
 /// Main application, manages general aspects of the application
-#[derive(Default)]
 pub struct TokenMaker {
     operation: Mode,
     data: ProgramData,
@@ -87,12 +87,12 @@ impl Application for TokenMaker {
     fn new(_flags: Self::Flags) -> (Self, Command<Self::Message>) {
         (
             {
+                let data = ProgramData::new();
                 let s = Self {
-                    data: ProgramData {
-                        file: Browser::new("./"),
-                        ..Default::default()
-                    },
-                    ..Default::default()
+                    data,
+                    new_workspace_template: WorkspaceTemplate::None,
+                    operation: Mode::CreateWorkspace,
+                    workspaces: Vec::new(),
                 };
                 s
             },
@@ -128,6 +128,7 @@ impl Application for TokenMaker {
             Message::LookForOutputFolder => {
                 self.operation = Mode::FileBrowser;
                 self.data.file.set_target(Target::Directory);
+                self.data.file.set_path(&self.data.output);
                 self.data.file.refresh_path().unwrap();
                 Command::none()
             }
@@ -215,7 +216,7 @@ impl Application for TokenMaker {
             Message::Workspace(index, message) => {
                 if let Some(workspace) = self.workspaces.get_mut(index) {
                     workspace
-                        .update(message, &self.data)
+                        .update(message, &mut self.data)
                         .map(move |x| Message::Workspace(index, x))
                 } else {
                     Command::none()
@@ -283,13 +284,7 @@ impl TokenMaker {
         if i == 0 && self.data.naming.project_name.len() == 0 {
             self.data.naming.project_name = name;
         }
-        let name = self
-            .data
-            .naming
-            .convention
-            .get(&self.new_workspace_template)
-            .unwrap()
-            .clone();
+        let name = self.data.naming.get(&self.new_workspace_template);
 
         let (command, new_workspace) =
             Workspace::new(name, image, &self.data, self.new_workspace_template);

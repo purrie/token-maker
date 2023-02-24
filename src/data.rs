@@ -5,6 +5,8 @@ use iced::widget::{column as col, horizontal_space, radio, row, text, text_input
 use iced::{Alignment, Command, Element, Length, Point, Renderer, Size};
 use iced_native::image::Handle;
 
+use crate::cache::{Cache, CacheValue};
+use crate::style::Layout;
 use crate::{
     file_browser::Browser,
     image::{image_to_handle, GrayscaleImage, ImageFormat, RgbaImage},
@@ -13,7 +15,6 @@ use crate::{
 };
 
 /// Data and tools available in the program
-#[derive(Default)]
 pub struct ProgramData {
     /// File browser, used for allowing the user ease of access to the file system
     pub file: Browser,
@@ -27,6 +28,8 @@ pub struct ProgramData {
     pub layout: Layout,
     /// Naming conventions to use in the program
     pub naming: NamingConvention,
+    /// Values saved across sessions
+    pub cache: Cache,
 }
 
 /// Messages for customizing the program settings
@@ -40,6 +43,41 @@ pub enum ProgramDataMessage {
 }
 
 impl ProgramData {
+    const SETTINGS_ID: &str = "settings";
+    pub fn new() -> ProgramData {
+        let cache = Cache::load();
+        let file = match cache
+            .get("file-browser", "folder")
+            .and_then(|x| x.check_string())
+        {
+            Some(p) => Browser::new(p),
+            None => Browser::start_at_home(),
+        };
+        let theme = match cache.get_copy(ProgramData::SETTINGS_ID, "theme") {
+            Some(t) => t.to_theme(),
+            None => Theme::default(),
+        };
+        let layout = match cache.get_copy(ProgramData::SETTINGS_ID, "layout") {
+            Some(l) => l.to_layout(),
+            None => Layout::default(),
+        };
+        let output = match cache.get_copy(ProgramData::SETTINGS_ID, "output") {
+            Some(o) => o.to_string(),
+            None => String::new(),
+        }
+        .into();
+        let naming = NamingConvention::new(&cache);
+
+        Self {
+            file,
+            output,
+            available_frames: Vec::new(),
+            theme,
+            layout,
+            naming,
+            cache,
+        }
+    }
     /// Draws UI for customizing program settings
     pub fn view(&self) -> Element<ProgramDataMessage, Renderer> {
         col![
@@ -78,10 +116,7 @@ impl ProgramData {
                         text("Default: ").width(Length::Fill),
                         text_input(
                             "Default Name",
-                            self.naming
-                                .convention
-                                .get(&WorkspaceTemplate::None)
-                                .unwrap(),
+                            self.naming.check(&WorkspaceTemplate::None),
                             |x| ProgramDataMessage::SetNamingConvention(WorkspaceTemplate::None, x)
                         )
                         .width(Length::FillPortion(5)),
@@ -91,10 +126,7 @@ impl ProgramData {
                         text("Token: ").width(Length::Fill),
                         text_input(
                             "Default Name",
-                            self.naming
-                                .convention
-                                .get(&WorkspaceTemplate::Token)
-                                .unwrap(),
+                            self.naming.check(&WorkspaceTemplate::Token),
                             |x| ProgramDataMessage::SetNamingConvention(
                                 WorkspaceTemplate::Token,
                                 x
@@ -107,10 +139,7 @@ impl ProgramData {
                         text("Portrait: ").width(Length::Fill),
                         text_input(
                             "Default Name",
-                            self.naming
-                                .convention
-                                .get(&WorkspaceTemplate::Portrait)
-                                .unwrap(),
+                            self.naming.check(&WorkspaceTemplate::Portrait),
                             |x| ProgramDataMessage::SetNamingConvention(
                                 WorkspaceTemplate::Portrait,
                                 x
@@ -138,15 +167,25 @@ impl ProgramData {
         match message {
             ProgramDataMessage::SetTheme(t) => {
                 self.theme = t;
+                self.cache.set(
+                    ProgramData::SETTINGS_ID,
+                    "theme".to_string(),
+                    self.theme.into(),
+                );
                 Command::none()
             }
             ProgramDataMessage::SetLayout(l) => {
                 self.layout = l;
+                self.cache.set(
+                    ProgramData::SETTINGS_ID,
+                    "layout".to_string(),
+                    self.layout.into(),
+                );
                 Command::none()
             }
             ProgramDataMessage::SetNamingConvention(template, text) => {
                 // TODO make sure the text is valid
-                self.naming.convention.insert(template, text);
+                self.naming.set(template, text, &mut self.cache);
                 Command::none()
             }
             ProgramDataMessage::SetProjectName(n) => {
@@ -157,47 +196,82 @@ impl ProgramData {
     }
 }
 
+impl Drop for ProgramData {
+    fn drop(&mut self) {
+        // saving cache for browser
+        let path = self.file.get_path().to_string_lossy().to_string();
+        self.cache.set(
+            "file-browser",
+            "folder".to_string(),
+            CacheValue::String(path),
+        );
+        self.cache.set(
+            ProgramData::SETTINGS_ID,
+            "output".to_string(),
+            self.output.clone().into(),
+        );
+    }
+}
+
 /// Structure holds information about default values for names used throughout the program
 #[derive(Debug)]
 pub struct NamingConvention {
-    pub convention: HashMap<WorkspaceTemplate, String>,
+    convention: HashMap<WorkspaceTemplate, String>,
     pub project_name: String,
 }
 
 impl NamingConvention {
     pub const KEYWORD_PROJECT: &str = "$project_name";
-}
+    const CACHE_ID: &str = "naming-convention";
 
-impl Default for NamingConvention {
-    fn default() -> Self {
+    /// Constructs new naming convention, loading default values from the cache if present
+    fn new(cache: &Cache) -> Self {
         let mut convention = HashMap::new();
-        convention.insert(
-            WorkspaceTemplate::None,
-            format!("{}", NamingConvention::KEYWORD_PROJECT),
-        );
-        convention.insert(
-            WorkspaceTemplate::Token,
-            format!("{}-token", NamingConvention::KEYWORD_PROJECT),
-        );
-        convention.insert(
-            WorkspaceTemplate::Portrait,
-            format!("{}-portrait", NamingConvention::KEYWORD_PROJECT),
-        );
+        // Inserting default or saved names for each template type
+        WorkspaceTemplate::ALL.iter().for_each(|wt| {
+            convention.insert(
+                wt.clone(),
+                match cache.get(NamingConvention::CACHE_ID, wt.get_id()) {
+                    Some(n) => match n {
+                        CacheValue::String(n) => n.clone(),
+                        _ => format!(
+                            "{}{}",
+                            NamingConvention::KEYWORD_PROJECT,
+                            wt.get_default_file_name()
+                        ),
+                    },
+                    None => {
+                        format!(
+                            "{}{}",
+                            NamingConvention::KEYWORD_PROJECT,
+                            wt.get_default_file_name()
+                        )
+                    }
+                },
+            );
+        });
         Self {
             convention,
             project_name: String::from(""),
         }
     }
-}
-
-/// Provides instruction as to how workspaces should be laid out
-#[derive(Debug, Default, Clone, Copy, PartialEq, Eq)]
-pub enum Layout {
-    /// One next to another
-    #[default]
-    Parallel,
-    /// One at a time in tabs
-    Stacking(usize),
+    /// Returns a copy of the naming convention for specified template
+    pub fn get(&self, template: &WorkspaceTemplate) -> String {
+        self.convention.get(template).unwrap().clone()
+    }
+    /// Borrows the naming convention for specified template
+    pub fn check(&self, template: &WorkspaceTemplate) -> &str {
+        self.convention.get(template).unwrap()
+    }
+    /// Sets naming convention for specified template, saving it to cache as well
+    pub fn set(&mut self, template: WorkspaceTemplate, name: String, cache: &mut Cache) {
+        cache.set(
+            Self::CACHE_ID,
+            template.get_id().to_string(),
+            name.clone().into(),
+        );
+        self.convention.insert(template, name);
+    }
 }
 
 pub struct WorkspaceData {
@@ -240,6 +314,8 @@ impl Default for WorkspaceData {
 /// Holds images prepared to be used as frames for tokens
 #[derive(Debug, Clone)]
 pub struct FrameImage {
+    /// Name of the image
+    pub name: String,
     /// iced native image format, used for rendering
     pub display: Handle,
     /// Image ready for use in rendering process
@@ -287,12 +363,14 @@ pub async fn load_frames() -> std::io::Result<Vec<FrameImage>> {
 
         if let Ok(mask) = image::open(path) {
             res.push(FrameImage {
+                name,
                 display,
                 frame: Arc::new(img),
                 mask: Some(Arc::new(mask.into_luma8())),
             });
         } else {
             res.push(FrameImage {
+                name,
                 display,
                 frame: Arc::new(img),
                 mask: None,

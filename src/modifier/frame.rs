@@ -7,7 +7,7 @@ use iced::{
 
 use image::imageops::resize;
 
-use crate::data::{ProgramData, WorkspaceData};
+use crate::data::{FrameImage, ProgramData, WorkspaceData};
 use crate::image::{GrayscaleImage, ImageOperation, RgbaImage};
 
 use super::{Modifier, ModifierOperation};
@@ -40,11 +40,24 @@ pub struct Frame {
 impl Modifier for Frame {
     type Message = FrameMessage;
 
-    fn create(_pdata: &ProgramData, _wdata: &WorkspaceData) -> (Command<Self::Message>, Self) {
-        let s = Self {
+    fn create(pdata: &ProgramData, wdata: &WorkspaceData) -> (Command<Self::Message>, Self) {
+        let mut s = Self {
+            select_frame: true,
             ..Default::default()
         };
-        (Command::none(), s)
+        let c = if let Some(frame) = pdata
+            .cache
+            .get("frame-modifier", wdata.template.get_id())
+            .and_then(|x| x.check_string())
+        {
+            match pdata.available_frames.iter().find(|x| x.name == frame) {
+                Some(f) => s.set_frame(f, wdata),
+                None => Command::none(),
+            }
+        } else {
+            Command::none()
+        };
+        (c, s)
     }
     fn label() -> &'static str {
         "Frame"
@@ -85,8 +98,8 @@ impl Modifier for Frame {
     fn properties_update(
         &mut self,
         message: Self::Message,
-        pdata: &ProgramData,
-        wdata: &WorkspaceData,
+        pdata: &mut ProgramData,
+        wdata: &mut WorkspaceData,
     ) -> Command<Self::Message> {
         match message {
             FrameMessage::OpenFrameSelect => {
@@ -97,14 +110,12 @@ impl Modifier for Frame {
                 let Some(f) = pdata.available_frames.get(index) else {
                     return Command::none();
                 };
-                self.source = Some(f.frame.clone());
-                self.source_mask = f.mask.clone();
-                let frame = f.frame.clone();
-                let mask = f.mask.clone();
-                let size = wdata.export_size;
-                Command::perform(update_frame(frame, mask, size), |x| {
-                    FrameMessage::NewFrame(x.0, x.1)
-                })
+                pdata.cache.set(
+                    "frame-modifier",
+                    wdata.template.get_id().to_string(),
+                    f.name.clone().into(),
+                );
+                self.set_frame(f, wdata)
             }
             FrameMessage::CancelFrame => {
                 self.select_frame = false;
@@ -208,6 +219,19 @@ impl Modifier for Frame {
         ]
         .width(Length::Fill)
         .into()
+    }
+}
+
+impl Frame {
+    fn set_frame(&mut self, frame: &FrameImage, wdata: &WorkspaceData) -> Command<FrameMessage> {
+        self.source = Some(frame.frame.clone());
+        self.source_mask = frame.mask.clone();
+        let size = wdata.export_size;
+        let mask = frame.mask.clone();
+        let frame = frame.frame.clone();
+        Command::perform(update_frame(frame, mask, size), |x| {
+            FrameMessage::NewFrame(x.0, x.1)
+        })
     }
 }
 

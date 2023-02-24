@@ -1,6 +1,8 @@
 use std::path::PathBuf;
 
-use iced::widget::{button, column as col, container, row, scrollable, text, Column, Container, horizontal_space};
+use iced::widget::{
+    button, column as col, container, horizontal_space, row, scrollable, text, Column, Container,
+};
 use iced::{Element, Length, Renderer};
 
 pub struct Browser {
@@ -25,18 +27,38 @@ pub enum BrowsingResult {
     Done(PathBuf),
 }
 
+#[derive(Default)]
 pub enum Target {
+    #[default]
     File,
     Filtered(String),
     Directory,
 }
 
+#[allow(unused)]
 impl Browser {
-    pub fn new<T: Into<PathBuf>>(start_path: T) -> Self {
+    pub fn new<P: Into<PathBuf>>(path: P) -> Self {
         Self {
-            path: start_path.into(),
-            ..Default::default()
+            path: path.into(),
+            selected: None,
+            dir: Vec::new(),
+            target: Target::File,
         }
+    }
+    pub fn start_at_home() -> Self {
+        let path = dirs::home_dir().unwrap();
+        Self {
+            path,
+            selected: None,
+            dir: Vec::new(),
+            target: Target::File,
+        }
+    }
+    pub fn set_path<P: Into<PathBuf>>(&mut self, path: P) {
+        self.path = path.into()
+    }
+    pub fn get_path(&self) -> &PathBuf {
+        &self.path
     }
     pub fn set_target(&mut self, target: Target) {
         self.target = target;
@@ -48,7 +70,9 @@ impl Browser {
             if let Ok(f) = f {
                 let path = f.path();
                 match &self.target {
-                    Target::Filtered(f) if !is_filter_match(&f, &path) && path.is_file() => continue,
+                    Target::Filtered(f) if !is_filter_match(&f, &path) && path.is_file() => {
+                        continue
+                    }
                     Target::Directory if path.is_file() => continue,
                     _ => self.dir.push(path),
                 }
@@ -89,14 +113,12 @@ impl Browser {
                 self.selected = None;
                 Ok(BrowsingResult::Canceled)
             }
-            BrowserOperation::Accept => {
-                match (&self.selected, &self.target) {
-                    (Some(p), Target::File) if p.is_file() => Ok(BrowsingResult::Done(p.clone())),
-                    (Some(p), Target::Filtered(_)) => Ok(BrowsingResult::Done(p.clone())),
-                    (_, Target::Directory) => Ok(BrowsingResult::Done(self.path.clone())),
-                    _ => Ok(BrowsingResult::Pending)
-                }
-            }
+            BrowserOperation::Accept => match (&self.selected, &self.target) {
+                (Some(p), Target::File) if p.is_file() => Ok(BrowsingResult::Done(p.clone())),
+                (Some(p), Target::Filtered(_)) => Ok(BrowsingResult::Done(p.clone())),
+                (_, Target::Directory) => Ok(BrowsingResult::Done(self.path.clone())),
+                _ => Ok(BrowsingResult::Pending),
+            },
         }
     }
     pub fn view_raw(&self) -> Container<BrowserOperation, Renderer> {
@@ -143,9 +165,7 @@ impl Browser {
             (Target::Filtered(filter), Some(p)) if is_filter_match(&filter, &p) => {
                 button("Accept").on_press(BrowserOperation::Accept)
             }
-            (Target::Directory, _) => {
-                button("Accept").on_press(BrowserOperation::Accept)
-            }
+            (Target::Directory, _) => button("Accept").on_press(BrowserOperation::Accept),
             _ => button("Accept"),
         };
 
@@ -178,19 +198,4 @@ fn is_filter_match(filter: &str, path: &PathBuf) -> bool {
         .and_then(|x| x.to_str())
         .and_then(|x| if x == filter { Some(()) } else { None })
         .is_some()
-}
-
-impl Default for Browser {
-    fn default() -> Self {
-        let path = match std::env::var("HOME") {
-            Ok(o) => o.into(),
-            Err(_) => "./".into(),
-        };
-        Self {
-            path,
-            selected: None,
-            dir: Vec::new(),
-            target: Target::File,
-        }
-    }
 }

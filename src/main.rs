@@ -1,11 +1,12 @@
+mod cache;
 mod data;
 mod file_browser;
 mod image;
 mod modifier;
+mod style;
 mod token_maker;
 mod trackpad;
 mod workspace;
-mod style;
 
 use iced::{Application, Settings};
 use token_maker::TokenMaker;

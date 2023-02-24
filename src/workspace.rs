@@ -10,6 +10,7 @@ use iced::{
 };
 
 use iced_native::image::Data;
+use serde::{Deserialize, Serialize};
 
 use crate::data::{NamingConvention, ProgramData, WorkspaceData};
 use crate::image::{image_arc_to_handle, image_to_handle, ImageFormat, ImageOperation, RgbaImage};
@@ -135,7 +136,7 @@ impl Workspace {
     pub fn update(
         &mut self,
         msg: WorkspaceMessage,
-        pdata: &ProgramData,
+        pdata: &mut ProgramData,
     ) -> Command<WorkspaceMessage> {
         match msg {
             WorkspaceMessage::OutputNameChange(s) => {
@@ -190,7 +191,7 @@ impl Workspace {
             WorkspaceMessage::Render => self.produce_render(pdata),
             WorkspaceMessage::ModifierMessage(index, message) => {
                 if let Some(m) = self.modifiers.get_mut(index) {
-                    m.properties_update(message, pdata, &self.data)
+                    m.properties_update(message, pdata, &mut self.data)
                         .map(move |x| WorkspaceMessage::ModifierMessage(index, x))
                 } else {
                     Command::none()
@@ -437,7 +438,7 @@ impl Workspace {
 }
 
 /// Allows the program to define which default values should be used for the workspace and its modifiers
-#[derive(Default, Debug, Clone, Copy, PartialEq, Eq, Hash)]
+#[derive(Default, Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
 pub enum WorkspaceTemplate {
     /// None means there should be no specialization for the workspace
     #[default]
@@ -454,6 +455,21 @@ impl WorkspaceTemplate {
         WorkspaceTemplate::Token,
         WorkspaceTemplate::Portrait,
     ];
+
+    pub fn get_id(&self) -> &'static str {
+        match self {
+            WorkspaceTemplate::None => "none",
+            WorkspaceTemplate::Token => "token",
+            WorkspaceTemplate::Portrait => "portrait",
+        }
+    }
+    pub fn get_default_file_name(&self) -> &'static str {
+        match self {
+            WorkspaceTemplate::None => "",
+            WorkspaceTemplate::Token => "-token",
+            WorkspaceTemplate::Portrait => "-portrait",
+        }
+    }
 }
 
 impl Display for WorkspaceTemplate {
