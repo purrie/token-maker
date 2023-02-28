@@ -183,7 +183,18 @@ pub fn mask_image(mut image: RgbaImage, mask: &GrayscaleImage) -> RgbaImage {
         .pixels_mut()
         .zip(mask.pixels())
         .filter(|(_, m)| m[0] < u8::MAX)
-        .for_each(|(p, m)| p[3] = m[0].min(p[3]));
+        .for_each(|(p, m)| {
+            let mask = m[0];
+            let source = p[3];
+            if mask < source {
+                // this whole color multiplication serves purpose of preventing the image from reappearing on outside edges of the frame
+                let (r, g, b) = (p[0] as f32, p[1] as f32, p[2] as f32);
+                let a = mask as f32 / u8::MAX as f32;
+                let (r, g, b) = (r as f32 * a, g as f32 * a, b as f32 * a);
+                let (r, g, b) = (r as u8, g as u8, b as u8);
+                *p = [r, g, b, mask].into()
+            }
+        });
     image
 }
 
@@ -193,7 +204,6 @@ pub fn blend_images(mut image: RgbaImage, overlay: &RgbaImage) -> RgbaImage {
     image
         .pixels_mut()
         .zip(overlay.pixels())
-        .filter(|(_, s)| s[3] > 0)
         .for_each(|(t, s)| t.blend(s));
     image
 }
