@@ -1,4 +1,5 @@
 use std::collections::HashMap;
+use std::fs::create_dir_all;
 use std::{fs::read_dir, path::PathBuf, sync::Arc};
 
 use iced::widget::{column as col, horizontal_space, radio, row, text, text_input, vertical_space};
@@ -8,9 +9,9 @@ use iced_native::image::Handle;
 use crate::cache::{Cache, CacheValue};
 use crate::style::Layout;
 use crate::{
-    file_browser::Browser,
     image::{image_to_handle, GrayscaleImage, ImageFormat, RgbaImage},
     style::Theme,
+    widgets::Browser,
     workspace::WorkspaceTemplate,
 };
 
@@ -328,9 +329,51 @@ pub struct FrameImage {
     pub mask: Option<Arc<GrayscaleImage>>,
 }
 
+pub const PROJECT_DATA_PATH: &str = "./data";
+macro_rules! frames_path {
+    () => {
+        std::path::PathBuf::from(format!("{}/frames/", crate::data::PROJECT_DATA_PATH))
+    };
+}
+pub(crate) use frames_path;
+
+/// Saves the frame using its name for path location
+pub fn save_frame(frame: &FrameImage) {
+    let mut location = frames_path!();
+    if location.exists() == false {
+        create_dir_all(&location).unwrap();
+    }
+    location.push(format!("{}.webp", &frame.name));
+    image::save_buffer(
+        &location,
+        &frame.frame,
+        frame.frame.width(),
+        frame.frame.height(),
+        image::ColorType::Rgba8,
+    )
+    .unwrap();
+    location.set_file_name(format!("{}-mask.webp", &frame.name));
+    let mask = frame.mask.as_ref().unwrap();
+    let pix = mask.as_raw();
+    let width = mask.width() as usize;
+    let mask = RgbaImage::from_fn(mask.width(), mask.height(), |x, y| {
+        let i = width * y as usize + x as usize;
+        let pix = pix[i];
+        [pix, pix, pix, pix].into()
+    });
+    image::save_buffer(
+        location,
+        &mask,
+        mask.width(),
+        mask.height(),
+        image::ColorType::Rgba8,
+    )
+    .unwrap();
+}
+
 /// Function crawls through frames folder and gathers all images for frames and their masks
 pub async fn load_frames() -> std::io::Result<Vec<FrameImage>> {
-    let location = PathBuf::from("./data/frames/");
+    let location = frames_path!();
     let dir = read_dir(location)?;
     let mut res = vec![];
 

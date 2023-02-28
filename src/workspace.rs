@@ -15,7 +15,7 @@ use serde::{Deserialize, Serialize};
 use crate::data::{sanitize_file_name, NamingConvention, ProgramData, WorkspaceData};
 use crate::image::{image_arc_to_handle, image_to_handle, ImageFormat, ImageOperation, RgbaImage};
 use crate::modifier::{ModifierBox, ModifierMessage, ModifierOperation, ModifierTag};
-use crate::trackpad::Trackpad;
+use crate::widgets::Trackpad;
 
 /// Workspace serves purpose of providing tools to take the source image through series of operations to final result
 pub struct Workspace {

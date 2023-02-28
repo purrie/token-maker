@@ -1,11 +1,11 @@
 mod cache;
 mod data;
-mod file_browser;
+mod frame_maker;
 mod image;
 mod modifier;
 mod style;
 mod token_maker;
-mod trackpad;
+mod widgets;
 mod workspace;
 
 use iced::{Application, Settings};

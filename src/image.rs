@@ -202,6 +202,7 @@ pub fn blend_images(mut image: RgbaImage, overlay: &RgbaImage) -> RgbaImage {
 pub fn image_to_handle(image: RgbaImage) -> Handle {
     Handle::from_pixels(image.width(), image.height(), image.into_raw())
 }
+
 pub fn image_arc_to_handle(image: &Arc<RgbaImage>) -> Handle {
     Handle::from_pixels(
         image.width(),
@@ -211,4 +212,14 @@ pub fn image_arc_to_handle(image: &Arc<RgbaImage>) -> Handle {
             v
         }),
     )
+}
+
+/// Converts a grayscale image to iced image
+#[allow(unused)]
+pub fn grayscale_to_handle(mask: &GrayscaleImage) -> Handle {
+    let i = RgbaImage::from_fn(mask.width(), mask.height(), |x, y| {
+        let p = mask.get_pixel(x, y);
+        Rgba([p[0], p[0], p[0], 255])
+    });
+    image_to_handle(i)
 }

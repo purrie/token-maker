@@ -10,10 +10,11 @@ use iced::{
     Theme,
 };
 
-use crate::data::{load_frames, FrameImage, ProgramData, ProgramDataMessage};
-use crate::file_browser::{BrowserOperation, BrowsingResult, Target};
+use crate::data::{load_frames, save_frame, FrameImage, ProgramData, ProgramDataMessage};
+use crate::frame_maker::{FrameMaker, FrameMakerMessage};
 use crate::image::{image_arc_to_handle, RgbaImage};
 use crate::style::Layout;
+use crate::widgets::{BrowserOperation, BrowsingResult, Target};
 use crate::workspace::{Workspace, WorkspaceMessage, WorkspaceTemplate};
 
 /// Main application, manages general aspects of the application
@@ -21,6 +22,7 @@ pub struct TokenMaker {
     operation: Mode,
     data: ProgramData,
     workspaces: Vec<Workspace>,
+    frame_maker: FrameMaker,
 
     new_workspace_template: WorkspaceTemplate,
 }
@@ -40,6 +42,8 @@ pub enum Message {
     /// Request to display currently active workspaces.
     /// If none were created so far, it displays workspace creation screen
     DisplayWorkspaces,
+    /// Request to display frame making editor
+    LookForFrame,
     /// Message related to the workspace
     Workspace(usize, WorkspaceMessage),
     /// Request to close specified workspace
@@ -54,6 +58,10 @@ pub enum Message {
     SettingsMessage(ProgramDataMessage),
     /// Result of a task which loads in all the frames
     LoadedFrames(Vec<FrameImage>),
+    /// Messages meant for frame maker editor
+    FrameMakerMessage(FrameMakerMessage),
+    /// Request to export frame in frame editor
+    FrameMakerExport,
     /// Error message
     /// TODO turn this into a proper error handling
     Error(String),
@@ -70,9 +78,18 @@ pub enum Mode {
     /// Regular operation of the program, displays all active workspaces
     Workspace,
     /// Displays the file browser
-    FileBrowser,
+    FileBrowser(BrowsingFor),
     /// Display UI for customizing how the program works or looks
     Settings,
+    /// Display editor for making frames
+    FrameMaker,
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub enum BrowsingFor {
+    Token,
+    Output,
+    Frame,
 }
 
 impl Application for TokenMaker {
@@ -93,6 +110,7 @@ impl Application for TokenMaker {
                     new_workspace_template: WorkspaceTemplate::None,
                     operation: Mode::CreateWorkspace,
                     workspaces: Vec::new(),
+                    frame_maker: FrameMaker::new(),
                 };
                 s
             },
@@ -120,15 +138,21 @@ impl Application for TokenMaker {
     fn update(&mut self, message: Self::Message) -> Command<Self::Message> {
         match message {
             Message::LookForImage => {
-                self.operation = Mode::FileBrowser;
+                self.operation = Mode::FileBrowser(BrowsingFor::Token);
                 self.data.file.set_target(Target::Filtered("png".into()));
                 self.data.file.refresh_path().unwrap();
                 Command::none()
             }
             Message::LookForOutputFolder => {
-                self.operation = Mode::FileBrowser;
+                self.operation = Mode::FileBrowser(BrowsingFor::Output);
                 self.data.file.set_target(Target::Directory);
                 self.data.file.set_path(&self.data.output);
+                self.data.file.refresh_path().unwrap();
+                Command::none()
+            }
+            Message::LookForFrame => {
+                self.operation = Mode::FileBrowser(BrowsingFor::Frame);
+                self.data.file.set_target(Target::Filtered("png".into()));
                 self.data.file.refresh_path().unwrap();
                 Command::none()
             }
@@ -137,34 +161,43 @@ impl Application for TokenMaker {
                     match x {
                         BrowsingResult::Pending => Command::none(),
                         BrowsingResult::Canceled => {
-                            if self.workspaces.len() > 0 {
-                                self.operation = Mode::Workspace;
-                            } else {
-                                self.operation = Mode::CreateWorkspace;
-                            }
+                            self.main_screen();
                             Command::none()
                         }
                         BrowsingResult::Done(path) => {
-                            let command = if path.is_file() {
-                                if let Ok(img) = image::open(&path) {
-                                    let img = img.into_rgba8();
-                                    let name =
-                                        path.file_stem().unwrap().to_string_lossy().to_string();
-                                    self.add_workspace(name, img.into())
-                                } else {
+                            let Mode::FileBrowser(reason) = &self.operation else {
+                                panic!("How did we get here...");
+                            };
+                            match reason {
+                                BrowsingFor::Token => {
+                                    if let Ok(img) = image::open(&path) {
+                                        let img = img.into_rgba8();
+                                        let name =
+                                            path.file_stem().unwrap().to_string_lossy().to_string();
+                                        let c = self.add_workspace(name, img.into());
+                                        self.main_screen();
+                                        c
+                                    } else {
+                                        Command::none()
+                                    }
+                                }
+
+                                BrowsingFor::Output => {
+                                    self.data.output = path;
+                                    self.main_screen();
                                     Command::none()
                                 }
-                            } else {
-                                self.data.output = path;
-                                Command::none()
-                            };
-
-                            if self.workspaces.len() > 0 {
-                                self.operation = Mode::Workspace;
-                            } else {
-                                self.operation = Mode::CreateWorkspace;
+                                BrowsingFor::Frame => {
+                                    if let Ok(img) = image::open(&path) {
+                                        let img = img.into_rgba8();
+                                        self.frame_maker.load(img);
+                                        self.operation = Mode::FrameMaker;
+                                    } else {
+                                        self.main_screen();
+                                    }
+                                    Command::none()
+                                }
                             }
-                            command
                         }
                     }
                 } else {
@@ -187,11 +220,7 @@ impl Application for TokenMaker {
                 Command::none()
             }
             Message::DisplayWorkspaces => {
-                if self.workspaces.len() > 0 {
-                    self.operation = Mode::Workspace;
-                } else {
-                    self.operation = Mode::CreateWorkspace;
-                }
+                self.main_screen();
                 Command::none()
             }
             Message::DisplaySettings => {
@@ -238,16 +267,32 @@ impl Application for TokenMaker {
                 self.workspaces.iter().for_each(|x| x.export(&self.data));
                 Command::none()
             }
+            Message::FrameMakerMessage(x) => self
+                .frame_maker
+                .update(x, &mut self.data)
+                .map(|x| Message::FrameMakerMessage(x)),
+            Message::FrameMakerExport => {
+                self.main_screen();
+                let frame = self.frame_maker.create_frame();
+                save_frame(&frame);
+                self.data.available_frames.push(frame);
+                Command::none()
+            }
         }
     }
 
     fn view(&self) -> iced::Element<'_, Self::Message, iced::Renderer<Self::Theme>> {
         let top_bar = self.top_bar();
         let ui = match self.operation {
-            Mode::FileBrowser => self.data.file.view().map(|x| Message::FileBrowser(x)),
+            Mode::FileBrowser(_) => self.data.file.view().map(|x| Message::FileBrowser(x)),
             Mode::CreateWorkspace => self.workspace_add_view(),
             Mode::Workspace => self.workspace_view(),
             Mode::Settings => self.settings_view(),
+            Mode::FrameMaker => self.frame_maker.view(&self.data).map(|x| match x {
+                FrameMakerMessage::Accept => Message::FrameMakerExport,
+                FrameMakerMessage::Cancel => Message::DisplayWorkspaces,
+                _ => Message::FrameMakerMessage(x),
+            }),
         };
         let ui = col![top_bar, ui].height(Length::Fill).width(Length::Fill);
         container(ui)
@@ -277,6 +322,13 @@ impl Application for TokenMaker {
 }
 
 impl TokenMaker {
+    fn main_screen(&mut self) {
+        if self.workspaces.len() > 0 {
+            self.operation = Mode::Workspace;
+        } else {
+            self.operation = Mode::CreateWorkspace;
+        }
+    }
     /// This function adds a new workspace with given data
     fn add_workspace(&mut self, name: String, image: Arc<RgbaImage>) -> Command<Message> {
         let i = self.workspaces.len();
@@ -330,6 +382,7 @@ impl TokenMaker {
             } else {
                 button("Save")
             },
+            button("Frame Maker").on_press(Message::LookForFrame),
             horizontal_space(Length::Fill),
             text("Project Name: "),
             text_input("Project Name", &self.data.naming.project_name, |x| {
