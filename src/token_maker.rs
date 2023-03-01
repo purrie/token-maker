@@ -10,7 +10,7 @@ use iced::{
     Theme,
 };
 
-use crate::data::{load_frames, save_frame, FrameImage, ProgramData, ProgramDataMessage};
+use crate::data::{load_frames, FrameImage, ProgramData, ProgramDataMessage};
 use crate::frame_maker::{FrameMaker, FrameMakerMessage};
 use crate::image::{image_arc_to_handle, RgbaImage};
 use crate::style::Layout;
@@ -274,7 +274,7 @@ impl Application for TokenMaker {
             Message::FrameMakerExport => {
                 self.main_screen();
                 let frame = self.frame_maker.create_frame();
-                save_frame(&frame);
+                frame.save_frame();
                 self.data.available_frames.push(frame);
                 Command::none()
             }

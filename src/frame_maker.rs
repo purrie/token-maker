@@ -1,5 +1,3 @@
-use std::sync::Arc;
-
 use iced::{
     widget::{button, column as col, horizontal_space, row, text, text_input},
     Command, Element, Length, Renderer, Vector,
@@ -8,7 +6,7 @@ use iced_native::image::Handle;
 use image::{Pixel, Rgba};
 
 use crate::{
-    data::{sanitize_file_name, FrameImage, ProgramData},
+    data::{sanitize_file_name, sanitize_file_name_allow_path, FrameImage, ProgramData},
     image::{image_to_handle, GrayscaleImage, RgbaImage},
     widgets::PixelSampler,
 };
@@ -75,12 +73,12 @@ impl FrameMaker {
     /// # Panics
     /// If the `can_save` test result is false, this function will likely throw a panic
     pub fn create_frame(&self) -> FrameImage {
-        FrameImage {
-            name: self.name.clone(),
-            frame: self.frame.clone().into(),
-            mask: Some(Arc::new(self.mask.as_ref().unwrap().clone())),
-            display: image_to_handle(self.frame.clone()),
-        }
+        FrameImage::new(
+            self.name.clone(),
+            self.category.clone(),
+            self.frame.clone(),
+            self.mask.clone(),
+        )
     }
 
     /// Tests if the frame can be saved
@@ -161,7 +159,7 @@ impl FrameMaker {
                 Command::none()
             }
             FrameMakerMessage::SetCategory(n) => {
-                self.category = sanitize_file_name(n);
+                self.category = sanitize_file_name_allow_path(n);
                 Command::none()
             }
             // Those two should be hijacked by the program

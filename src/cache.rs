@@ -47,6 +47,11 @@ impl From<String> for CacheValue {
         Self::String(value)
     }
 }
+impl From<&str> for CacheValue {
+    fn from(value: &str) -> Self {
+        Self::String(value.to_string())
+    }
+}
 impl From<PathBuf> for CacheValue {
     fn from(value: PathBuf) -> Self {
         Self::String(value.to_string_lossy().to_string())

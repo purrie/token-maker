@@ -302,6 +302,34 @@ impl Default for WorkspaceData {
     }
 }
 
+pub const PROJECT_DATA_FOLDER: &str = "data";
+macro_rules! data_path {
+    () => {{
+            let mut d = std::env::current_dir().unwrap();
+            d.push(PROJECT_DATA_FOLDER);
+            d
+    }};
+    ($($path:expr), +) => {{
+            // TODO change those to be proper path on release
+            let mut d = data_path!();
+            $(
+                d.push($path);
+            )+
+            d
+    }}
+}
+pub(crate) use data_path;
+
+macro_rules! frames_path {
+    () => {
+        data_path!("frames")
+    };
+    ($($path:expr), +) => {{
+        data_path!("frames", $($path), +)
+    }};
+}
+pub(crate) use frames_path;
+
 /// Removes any character from the string that could be problematic for use in file names.
 ///
 /// The resulting string is all lowercase to prevent weirdness when using the results across different platforms.
@@ -316,90 +344,156 @@ pub fn sanitize_file_name(name: String) -> String {
         .collect()
 }
 
+/// Removes characters problematic for file paths from the string
+///
+/// Works exactly the same as `sanitize_file_name` but allows path breaks
+pub fn sanitize_file_name_allow_path(name: String) -> String {
+    name.chars()
+        .map(|x| if x.is_whitespace() { '-' } else { x })
+        .filter(|x| {
+            x.is_alphanumeric() || *x == '-' || *x == '_' || *x == std::path::MAIN_SEPARATOR
+        })
+        .map(|x| x.to_ascii_lowercase())
+        .collect()
+}
+
+/// Removes any special characters from beginning and end of the string
+pub fn sanitize_file_name_ends(name: &String) -> String {
+    name.chars()
+        .enumerate()
+        .filter(|(i, c)| (*i != 0 && *i != name.len() - 1) || c.is_alphanumeric())
+        .map(|(_, x)| x)
+        .collect()
+}
+
 /// Holds images prepared to be used as frames for tokens
 #[derive(Debug, Clone)]
 pub struct FrameImage {
     /// Name of the image
-    pub name: String,
+    name: String,
+    /// name of the folder the frame was placed in
+    category: String,
     /// iced native image format, used for rendering
-    pub display: Handle,
+    display: Handle,
     /// Image ready for use in rendering process
-    pub frame: Arc<RgbaImage>,
+    frame: Arc<RgbaImage>,
     /// Optional mask for the frame
-    pub mask: Option<Arc<GrayscaleImage>>,
+    mask: Option<Arc<GrayscaleImage>>,
 }
 
-pub const PROJECT_DATA_PATH: &str = "./data";
-macro_rules! frames_path {
-    () => {
-        std::path::PathBuf::from(format!("{}/frames/", crate::data::PROJECT_DATA_PATH))
-    };
-}
-pub(crate) use frames_path;
-
-/// Saves the frame using its name for path location
-pub fn save_frame(frame: &FrameImage) {
-    let mut location = frames_path!();
-    if location.exists() == false {
-        create_dir_all(&location).unwrap();
+impl FrameImage {
+    /// Creates a new frame image
+    /// The function ensures the name and category is correct
+    pub fn new(
+        name: String,
+        category: String,
+        frame: RgbaImage,
+        mask: Option<GrayscaleImage>,
+    ) -> Self {
+        let mut name = sanitize_file_name_ends(&name);
+        if name.len() == 0 {
+            name = "untitled".to_string();
+        }
+        let category = sanitize_file_name_ends(&category);
+        let display = image_to_handle(frame.clone());
+        let frame = Arc::new(frame);
+        let mask = mask.and_then(|x| Some(Arc::new(x)));
+        Self {
+            name,
+            category,
+            display,
+            frame,
+            mask,
+        }
     }
-    location.push(format!("{}.webp", &frame.name));
-    image::save_buffer(
-        &location,
-        &frame.frame,
-        frame.frame.width(),
-        frame.frame.height(),
-        image::ColorType::Rgba8,
-    )
-    .unwrap();
-    location.set_file_name(format!("{}-mask.webp", &frame.name));
-    let mask = frame.mask.as_ref().unwrap();
-    let pix = mask.as_raw();
-    let width = mask.width() as usize;
-    let mask = RgbaImage::from_fn(mask.width(), mask.height(), |x, y| {
-        let i = width * y as usize + x as usize;
-        let pix = pix[i];
-        [pix, pix, pix, pix].into()
-    });
-    image::save_buffer(
-        location,
-        &mask,
-        mask.width(),
-        mask.height(),
-        image::ColorType::Rgba8,
-    )
-    .unwrap();
+
+    /// Name of the frame, it coresponds to the file name
+    pub fn name(&self) -> &str {
+        &self.name
+    }
+
+    /// Clones the image handle
+    pub fn preview(&self) -> Handle {
+        self.display.clone()
+    }
+
+    /// Clones the pointer to the frame image
+    pub fn image(&self) -> Arc<RgbaImage> {
+        self.frame.clone()
+    }
+
+    /// Clones the pointer to the mask image
+    pub fn mask(&self) -> Option<Arc<GrayscaleImage>> {
+        self.mask.clone()
+    }
+
+    /// Saves the frame using its name for path location
+    pub fn save_frame(&self) {
+        let mut location = frames_path!(&self.category);
+        if location.exists() == false {
+            create_dir_all(&location).unwrap();
+        }
+        location.push(format!("{}.webp", &self.name));
+
+        image::save_buffer(
+            &location,
+            &self.frame,
+            self.frame.width(),
+            self.frame.height(),
+            image::ColorType::Rgba8,
+        )
+        .unwrap();
+
+        location.set_file_name(format!("{}-mask.webp", &self.name));
+        let mask = self.mask.as_ref().unwrap();
+        let pix = mask.as_raw();
+        let width = mask.width() as usize;
+        let mask = RgbaImage::from_fn(mask.width(), mask.height(), |x, y| {
+            let i = width * y as usize + x as usize;
+            let pix = pix[i];
+            [pix, pix, pix, pix].into()
+        });
+
+        image::save_buffer(
+            location,
+            &mask,
+            mask.width(),
+            mask.height(),
+            image::ColorType::Rgba8,
+        )
+        .unwrap();
+    }
 }
 
 /// Function crawls through frames folder and gathers all images for frames and their masks
 pub async fn load_frames() -> std::io::Result<Vec<FrameImage>> {
-    let location = frames_path!();
-    let dir = read_dir(location)?;
     let mut res = vec![];
-
-    for d in dir {
-        // Skip any entries that failed to load
-        let Ok(d) = d else {
-            continue;
-        };
-        // We're only interested in files
-        let mut path = d.path();
-        if path.is_file() == false {
-            continue;
-        }
+    let mut dirs = vec![frames_path!()];
+    let mut load_frame = |mut path: PathBuf| {
         // Skipping mask images since we're loading them together with their real image
         let Some(name) = path.file_stem().and_then(|n| n.to_str()).and_then(|n| Some(n.to_string())) else {
-            continue;
+            return;
         };
         if name.contains("-mask") {
-            continue;
+            return;
         }
-        // We let the image crate handle whatever the file is valid image or not
         let Ok(img) = image::open(&path) else {
-            continue;
+            return;
         };
+
         let img = img.into_rgba8();
         let display = image_to_handle(img.clone());
+        let category = {
+            let mut path = path.clone();
+            path.pop();
+            let frames = format!("{}/", frames_path!().display());
+            let path = format!("{}", path.display());
+            if path.len() <= frames.len() {
+                String::from("Uncategoriezed")
+            } else {
+                path.replace(&frames, "")
+            }
+        };
 
         // loading the mask here, then adding it to the final result if it succeeds
         if let Some(ext) = path.extension().and_then(|x| x.to_str()) {
@@ -411,6 +505,7 @@ pub async fn load_frames() -> std::io::Result<Vec<FrameImage>> {
         if let Ok(mask) = image::open(path) {
             res.push(FrameImage {
                 name,
+                category,
                 display,
                 frame: Arc::new(img),
                 mask: Some(Arc::new(mask.into_luma8())),
@@ -418,11 +513,32 @@ pub async fn load_frames() -> std::io::Result<Vec<FrameImage>> {
         } else {
             res.push(FrameImage {
                 name,
+                category,
                 display,
                 frame: Arc::new(img),
                 mask: None,
             });
         }
+    };
+
+    // loads all the images from the frames folder and its subfolders
+    while let Some(p) = dirs.pop() {
+        let Ok(dir) = read_dir(p) else {
+            continue;
+        };
+        for d in dir {
+            // Skip any entries that failed to load
+            let Ok(d) = d else {
+                continue;
+            };
+            let path = d.path();
+            if path.is_dir() {
+                dirs.push(path.clone());
+                continue;
+            }
+            load_frame(path);
+        }
     }
+
     Ok(res)
 }

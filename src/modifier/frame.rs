@@ -50,7 +50,7 @@ impl Modifier for Frame {
             .get("frame-modifier", wdata.template.get_id())
             .and_then(|x| x.check_string())
         {
-            match pdata.available_frames.iter().find(|x| x.name == frame) {
+            match pdata.available_frames.iter().find(|x| x.name() == frame) {
                 Some(f) => s.set_frame(f, wdata),
                 None => Command::none(),
             }
@@ -113,7 +113,7 @@ impl Modifier for Frame {
                 pdata.cache.set(
                     "frame-modifier",
                     wdata.template.get_id().to_string(),
-                    f.name.clone(),
+                    f.name(),
                 );
                 self.set_frame(f, wdata)
             }
@@ -197,10 +197,8 @@ impl Modifier for Frame {
                     .height(Length::Shrink);
             }
             row = row.push(
-                button(
-                    iced::widget::image(img.display.clone()).content_fit(iced::ContentFit::Contain),
-                )
-                .on_press(FrameMessage::FrameSelected(total)),
+                button(iced::widget::image(img.preview()).content_fit(iced::ContentFit::Contain))
+                    .on_press(FrameMessage::FrameSelected(total)),
             );
             total += 1;
             count += 1;
@@ -225,11 +223,11 @@ impl Modifier for Frame {
 impl Frame {
     /// Sets the frame image to be used within the frame. It returns a task to resize the frame image to the same size as expected export size
     fn set_frame(&mut self, frame: &FrameImage, wdata: &WorkspaceData) -> Command<FrameMessage> {
-        self.source = Some(frame.frame.clone());
-        self.source_mask = frame.mask.clone();
+        self.source = Some(frame.image());
+        self.source_mask = frame.mask();
         let size = wdata.export_size;
-        let mask = frame.mask.clone();
-        let frame = frame.frame.clone();
+        let mask = frame.mask();
+        let frame = frame.image();
         Command::perform(update_frame(frame, mask, size), |x| {
             FrameMessage::NewFrame(x.0, x.1)
         })

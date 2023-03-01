@@ -2,11 +2,6 @@
 
 This document contains ideas and goals for the project as well as description of progress for each. Entries closer to the top can be considered of higher priority for current development.
 
-* Frame maker
-Need a workspace mode which would be for making frames, probably with its own template. Tho, to signify that this mode is for making assets for the program itself, it could be a better idea to not shove it into workspaces since those are for making tokens and such. It could also be used for making decorations.
-
-Then art can be created
-
 * Workspace Interface upgrade
 - Reorganize the top bar
   + There are 3 major parts to it, workspace properties, list of modifiers and modifier properties.
@@ -23,6 +18,12 @@ Then art can be created
   + example would be to inform the user that image has been successfully exported
 
 * Art
+** Themes
+- Primitive
+- Fantasy
+- Modern
+- Sci-Fi
+
 ** Frame Art
 - Round frames
 - Square frames
@@ -138,6 +139,13 @@ Could be done by animating values of filters, or having a collection of filters 
 
 * IDEA Project Saving
 Once I implement animations, it will probably be a good idea to also implement a way of saving the project so the work is not lost if someone wants to tweak the animation.
+
+* DONE Frame maker
+Need a workspace mode which would be for making frames, probably with its own template. Tho, to signify that this mode is for making assets for the program itself, it could be a better idea to not shove it into workspaces since those are for making tokens and such. It could also be used for making decorations.
+
+Then art can be created
+
+- Implement folder/categories for token frames
 
 * DONE Cache
 Program needs to save cache with most recently used settings for workspaces, with support for templates. Cache needs to be saved for modifiers as well.
