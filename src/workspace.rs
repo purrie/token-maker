@@ -4,9 +4,10 @@ use std::time::Duration;
 
 use iced::{
     widget::{
-        button, column as col, container, image::Handle, pick_list, row, text, text_input, Row,
+        button, column as col, container, horizontal_space, image::Handle, pick_list, row, text,
+        text_input, Row,
     },
-    Command, Element, Length, Point, Renderer, Size, Subscription,
+    Alignment, Command, Element, Length, Point, Renderer, Size, Subscription,
 };
 
 use iced_native::image::Data;
@@ -349,65 +350,136 @@ impl Workspace {
     fn toolbar<'a>(&'a self, pdata: &ProgramData) -> Row<'a, WorkspaceMessage, Renderer> {
         // main controls are mostly for customizing the workspace
         let main_controls = col![
-            row![button("Close").on_press(WorkspaceMessage::Close),],
             row![
                 text_input("Output name", &self.data.output, |x| {
                     WorkspaceMessage::OutputNameChange(x)
                 }),
                 pick_list(&ImageFormat::EXPORTABLE[..], Some(self.data.format), |x| {
                     WorkspaceMessage::SetFormat(x)
-                })
-                .width(Length::Shrink),
-            ],
+                }),
+                horizontal_space(5),
+                button("Close").on_press(WorkspaceMessage::Close),
+            ]
+            .height(Length::Shrink)
+            .align_items(Alignment::Center),
             row![
+                text(&format!(
+                    "Image size: {}x{}",
+                    self.source.width(),
+                    self.source.height()
+                )),
+                horizontal_space(Length::FillPortion(1)),
+                text("Zoom: "),
+                text_input("Zoom", &format!("{:.2}", self.data.zoom), |x| {
+                    if let Ok(x) = x.parse() {
+                        WorkspaceMessage::Zoom(x)
+                    } else {
+                        WorkspaceMessage::Zoom(self.data.zoom)
+                    }
+                })
+                .width(Length::FillPortion(2)),
+            ]
+            .height(Length::Fill)
+            .spacing(5)
+            .align_items(Alignment::Center),
+            row![
+                text("Offset: ")
+                    .width(Length::FillPortion(1))
+                    .vertical_alignment(iced::alignment::Vertical::Center),
+                text_input("x", &format!("{:.2}", self.data.offset.x), |x| {
+                    if let Ok(x) = x.parse() {
+                        WorkspaceMessage::Slide(Point {
+                            x: x,
+                            y: self.data.offset.y,
+                        })
+                    } else {
+                        WorkspaceMessage::Slide(self.data.offset)
+                    }
+                })
+                .width(Length::FillPortion(2)),
+                text("x"),
+                text_input("y", &format!("{:.2}", self.data.offset.y), |y| {
+                    if let Ok(y) = y.parse() {
+                        WorkspaceMessage::Slide(Point {
+                            y: y,
+                            x: self.data.offset.x,
+                        })
+                    } else {
+                        WorkspaceMessage::Slide(self.data.offset)
+                    }
+                })
+                .width(Length::FillPortion(2)),
+            ]
+            .height(Length::Fill)
+            .spacing(5)
+            .align_items(Alignment::Center),
+            row![
+                text("Size: ")
+                    .width(Length::FillPortion(1))
+                    .vertical_alignment(iced::alignment::Vertical::Center),
                 text_input("Width", &self.width_carrier, |x| {
                     WorkspaceMessage::SetOutputWidth(x)
-                }),
+                })
+                .width(Length::FillPortion(2)),
                 text("x"),
                 text_input("Height", &self.height_carrier, |x| {
                     WorkspaceMessage::SetOutputHeight(x)
                 })
+                .width(Length::FillPortion(2)),
             ]
+            .height(Length::Fill)
+            .spacing(5)
+            .align_items(Alignment::Center),
         ]
-        .width(Length::FillPortion(1))
-        .height(Length::Fill);
-        // TODO implement ability to reorder modifiers
+        .spacing(5);
+
         // list of modifiers, to allow switching between them
         let modifier_list = self.modifiers.iter().enumerate().fold(
             // column for modifiers
-            col![row![
+            col![
                 text("Active Modifiers:"),
                 pick_list(&ModifierTag::ALL[..], None, WorkspaceMessage::AddModifier)
                     .placeholder("Add"),
             ]
-            .spacing(2)]
             .spacing(2)
             .height(Length::Fill)
-            .width(Length::FillPortion(1)),
+            .width(Length::Fill),
             |col, (i, m)| {
                 let r = row![
-                    button(m.label()).on_press(WorkspaceMessage::SelectModifier(i)),
                     button("X").on_press(WorkspaceMessage::RemoveModifier(i)),
+                    button(m.label()).on_press(WorkspaceMessage::SelectModifier(i)),
+                    // TODO implement ability to reorder modifiers
                 ]
                 .spacing(2);
                 col.push(r)
             },
         );
-        let mut r = row![main_controls, modifier_list];
-        // show modifier UI
-        if let Some(selected) = self
+
+        let main_properties = if let Some(selected) = self
             .modifiers
             .get(self.selected_modifier)
             .and_then(|x| x.properties_view(pdata, &self.data))
         {
-            let selected =
+            let modifier_properties =
                 selected.map(move |x| WorkspaceMessage::ModifierMessage(self.selected_modifier, x));
-            let selected = container(selected)
-                .width(Length::FillPortion(2))
+            let modifier_properties = container(modifier_properties)
+                .width(Length::Fill)
                 .height(Length::Fill);
-            r = r.push(selected);
-        }
-        r.spacing(5)
+            row![
+                modifier_properties.width(Length::Fill),
+                main_controls.width(Length::Fill),
+            ]
+            .spacing(10)
+        } else {
+            row![main_controls]
+        };
+
+        row![
+            modifier_list.width(Length::FillPortion(1)),
+            main_properties.width(Length::FillPortion(5)),
+        ]
+        .spacing(10)
+        .padding(5)
     }
 
     /// Exports latest preview image to drive

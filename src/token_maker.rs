@@ -370,37 +370,55 @@ impl TokenMaker {
     }
     /// Main program UI located at the top of the window
     fn top_bar(&self) -> Element<Message, Renderer> {
-        row![
-            button("Add").on_press(Message::DisplayWorkspaceCreation),
-            tooltip(
-                button("Set Output Folder").on_press(Message::LookForOutputFolder),
-                format!("Current output: {}", self.data.output.to_string_lossy()),
-                tooltip::Position::Right
-            ),
-            if self.can_save() {
-                button("Save").on_press(Message::Export)
-            } else {
-                button("Save")
-            },
+        let left = row![button("Add Workspace").on_press(Message::DisplayWorkspaceCreation)];
+
+        let right = row![
             button("Frame Maker").on_press(Message::LookForFrame),
-            horizontal_space(Length::Fill),
-            text("Project Name: "),
-            text_input("Project Name", &self.data.naming.project_name, |x| {
-                Message::SettingsMessage(ProgramDataMessage::SetProjectName(x))
-            }),
-            horizontal_space(Length::Fill),
             if self.operation != Mode::Settings {
                 button("Settings").on_press(Message::DisplaySettings)
             } else {
                 button("Workspaces").on_press(Message::DisplayWorkspaces)
             },
         ]
+        .spacing(5);
+
+        if self.workspaces.len() > 0 {
+            let center = row![
+                text("Project Name: "),
+                text_input("Project Name", &self.data.naming.project_name, |x| {
+                    Message::SettingsMessage(ProgramDataMessage::SetProjectName(x))
+                }),
+                if self.can_save() {
+                    button("Export").on_press(Message::Export)
+                } else {
+                    button("Export")
+                },
+                tooltip(
+                    button("Set Export Path").on_press(Message::LookForOutputFolder),
+                    format!("Path: {}", self.data.output.to_string_lossy()),
+                    tooltip::Position::Right
+                ),
+            ]
+            .spacing(5)
+            .align_items(Alignment::Center);
+
+            row![
+                left,
+                horizontal_space(Length::Fill),
+                center.width(Length::FillPortion(2)),
+                horizontal_space(Length::Fill),
+                right,
+            ]
+        } else {
+            row![left, horizontal_space(Length::Fill), right,]
+        }
         .align_items(Alignment::Center)
         .spacing(2)
         .width(Length::Fill)
         .height(Length::Shrink)
         .into()
     }
+
     /// Constructs UI for customizing program settings
     fn settings_view(&self) -> Element<Message, Renderer> {
         self.data.view().map(|x| Message::SettingsMessage(x))
