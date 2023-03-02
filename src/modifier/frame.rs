@@ -223,6 +223,7 @@ impl Modifier for Frame {
 impl Frame {
     /// Sets the frame image to be used within the frame. It returns a task to resize the frame image to the same size as expected export size
     fn set_frame(&mut self, frame: &FrameImage, wdata: &WorkspaceData) -> Command<FrameMessage> {
+        self.select_frame = false;
         self.source = Some(frame.image());
         self.source_mask = frame.mask();
         let size = wdata.export_size;

@@ -13,7 +13,9 @@ use iced::{
 use iced_native::image::Data;
 use serde::{Deserialize, Serialize};
 
-use crate::data::{sanitize_file_name, NamingConvention, ProgramData, WorkspaceData};
+use crate::data::{
+    has_invalid_characters, sanitize_file_name, NamingConvention, ProgramData, WorkspaceData,
+};
 use crate::image::{image_arc_to_handle, image_to_handle, ImageFormat, ImageOperation, RgbaImage};
 use crate::modifier::{ModifierBox, ModifierMessage, ModifierOperation, ModifierTag};
 use crate::widgets::Trackpad;
@@ -141,6 +143,11 @@ impl Workspace {
     ) -> Command<WorkspaceMessage> {
         match msg {
             WorkspaceMessage::OutputNameChange(s) => {
+                if has_invalid_characters(&s) {
+                    pdata
+                        .status
+                        .warning("Removed invalid characters from the name")
+                }
                 self.data.output = sanitize_file_name(s);
                 self.update_modifiers(pdata)
             }
@@ -439,7 +446,7 @@ impl Workspace {
             col![
                 text("Active Modifiers:"),
                 pick_list(&ModifierTag::ALL[..], None, WorkspaceMessage::AddModifier)
-                    .placeholder("Add"),
+                    .placeholder("Add new"),
             ]
             .spacing(2)
             .height(Length::Fill)

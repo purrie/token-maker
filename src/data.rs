@@ -7,6 +7,7 @@ use iced::{Alignment, Command, Element, Length, Point, Renderer, Size};
 use iced_native::image::Handle;
 
 use crate::cache::{Cache, CacheValue};
+use crate::status_bar::StatusBar;
 use crate::style::Layout;
 use crate::{
     image::{image_to_handle, GrayscaleImage, ImageFormat, RgbaImage},
@@ -19,6 +20,8 @@ use crate::{
 pub struct ProgramData {
     /// File browser, used for allowing the user ease of access to the file system
     pub file: Browser,
+    /// Status line for giving feedback to the user
+    pub status: StatusBar,
     /// Intended export path, meant to be combined with individual names from workspaces
     pub output: PathBuf,
     /// Collection of frames loaded into the program
@@ -73,6 +76,7 @@ impl ProgramData {
             file,
             output,
             available_frames: Vec::new(),
+            status: StatusBar::new(),
             theme,
             layout,
             naming,
@@ -179,10 +183,18 @@ impl ProgramData {
                 Command::none()
             }
             ProgramDataMessage::SetNamingConvention(template, text) => {
+                if has_invalid_characters(&text) {
+                    self.status
+                        .warning("Removed invalid characters from the name");
+                }
                 self.naming.set(template, text, &mut self.cache);
                 Command::none()
             }
             ProgramDataMessage::SetProjectName(n) => {
+                if has_invalid_characters(&n) {
+                    self.status
+                        .warning("Removed invalid characters from the name");
+                }
                 self.naming.project_name = sanitize_file_name(n);
                 Command::none()
             }
@@ -342,6 +354,16 @@ pub fn sanitize_file_name(name: String) -> String {
         .filter(|x| x.is_alphanumeric() || *x == '-' || *x == '_' || *x == '$')
         .map(|x| x.to_ascii_lowercase())
         .collect()
+}
+
+pub fn has_invalid_characters(name: &str) -> bool {
+    name.chars().any(|x| {
+        x.is_whitespace() == false
+            && x != '-'
+            && x != '_'
+            && x != '$'
+            && x != std::path::MAIN_SEPARATOR
+    })
 }
 
 /// Removes characters problematic for file paths from the string

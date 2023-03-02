@@ -146,7 +146,9 @@ impl Application for TokenMaker {
             Message::LookForOutputFolder => {
                 self.operation = Mode::FileBrowser(BrowsingFor::Output);
                 self.data.file.set_target(Target::Directory);
-                self.data.file.set_path(&self.data.output);
+                if self.data.output.exists() {
+                    self.data.file.set_path(&self.data.output);
+                }
                 self.data.file.refresh_path().unwrap();
                 Command::none()
             }
@@ -261,10 +263,12 @@ impl Application for TokenMaker {
             }
             Message::Error(e) => {
                 eprintln!("Error: {}", e);
+                self.data.status.error(&e);
                 Command::none()
             }
             Message::Export => {
                 self.workspaces.iter().for_each(|x| x.export(&self.data));
+                self.data.status.log("Export successful");
                 Command::none()
             }
             Message::FrameMakerMessage(x) => self
@@ -275,6 +279,7 @@ impl Application for TokenMaker {
                 self.main_screen();
                 let frame = self.frame_maker.create_frame();
                 frame.save_frame();
+                self.data.status.log("Frame saved successfully");
                 self.data.available_frames.push(frame);
                 Command::none()
             }
@@ -288,13 +293,20 @@ impl Application for TokenMaker {
             Mode::CreateWorkspace => self.workspace_add_view(),
             Mode::Workspace => self.workspace_view(),
             Mode::Settings => self.settings_view(),
-            Mode::FrameMaker => self.frame_maker.view(&self.data).map(|x| match x {
-                FrameMakerMessage::Accept => Message::FrameMakerExport,
-                FrameMakerMessage::Cancel => Message::DisplayWorkspaces,
-                _ => Message::FrameMakerMessage(x),
-            }),
+            Mode::FrameMaker => self
+                .frame_maker
+                .view(&self.data)
+                .map(|x| Message::FrameMakerMessage(x)),
         };
-        let ui = col![top_bar, ui].height(Length::Fill).width(Length::Fill);
+        let status = self
+            .data
+            .status
+            .view()
+            .map(|_| Message::Error("Status line shouldn't cast messages for now".to_string()));
+
+        let ui = col![top_bar, ui, status]
+            .height(Length::Fill)
+            .width(Length::Fill);
         container(ui)
             .height(Length::Fill)
             .width(Length::Fill)
@@ -351,53 +363,95 @@ impl TokenMaker {
     }
 
     /// Checks if it is save to save images
-    fn can_save(&self) -> bool {
+    fn can_save(&self) -> Result<(), String> {
         if self.data.output.exists() == false {
-            return false;
+            return Err(String::from("Export folder not set"));
         }
         if self.workspaces.len() == 0 {
-            return false;
+            return Err(String::from("There's nothing to export"));
         }
-        self.workspaces.iter().enumerate().all(|(ix, x)| {
-            x.can_save()
-                // tests if the output name of each workspace is unique
-                && self
-                    .workspaces
-                    .iter()
-                    .enumerate()
-                    .all(|(io, o)| io == ix || o.get_output_name() != x.get_output_name())
-        })
+        for (ix, x) in self.workspaces.iter().enumerate() {
+            if x.can_save() == false {
+                return Err(String::from("Waitning for workspaces"));
+            }
+            if self
+                .workspaces
+                .iter()
+                .enumerate()
+                .all(|(io, o)| io == ix || o.get_output_name() != x.get_output_name())
+                == false
+            {
+                return Err(String::from(
+                    "Can't set the same export name for multiple workspaces",
+                ));
+            }
+        }
+        Ok(())
     }
     /// Main program UI located at the top of the window
     fn top_bar(&self) -> Element<Message, Renderer> {
-        let left = row![button("Add Workspace").on_press(Message::DisplayWorkspaceCreation)];
+        let left = match self.operation {
+            Mode::Workspace => {
+                row![button("Add Workspace").on_press(Message::DisplayWorkspaceCreation)]
+            }
+            Mode::CreateWorkspace if self.workspaces.len() > 0 => {
+                row![button("Cancel").on_press(Message::DisplayWorkspaces)]
+            }
+            Mode::FrameMaker => {
+                row![button("Cancel").on_press(Message::DisplayWorkspaces)]
+            }
+            _ => {
+                row![]
+            }
+        };
 
-        let right = row![
-            button("Frame Maker").on_press(Message::LookForFrame),
-            if self.operation != Mode::Settings {
-                button("Settings").on_press(Message::DisplaySettings)
-            } else {
-                button("Workspaces").on_press(Message::DisplayWorkspaces)
-            },
-        ]
+        let right = match self.operation {
+            Mode::FrameMaker => {
+                if self.frame_maker.can_save() {
+                    row![button("Export").on_press(Message::FrameMakerExport)]
+                } else {
+                    row![tooltip(
+                        button("Can't save yet"),
+                        "Click on the image to create the mask first",
+                        tooltip::Position::Left
+                    )]
+                }
+            }
+            Mode::Settings => {
+                row![button("Close").on_press(Message::DisplayWorkspaces)]
+            }
+            Mode::FileBrowser(_) => {
+                row![]
+            }
+            _ => {
+                row![
+                    button("Frame Maker").on_press(Message::LookForFrame),
+                    button("Settings").on_press(Message::DisplaySettings)
+                ]
+            }
+        }
         .spacing(5);
 
-        if self.workspaces.len() > 0 {
+        if self.workspaces.len() > 0 && self.operation == Mode::Workspace {
             let center = row![
                 text("Project Name: "),
                 text_input("Project Name", &self.data.naming.project_name, |x| {
                     Message::SettingsMessage(ProgramDataMessage::SetProjectName(x))
                 }),
-                if self.can_save() {
-                    button("Export").on_press(Message::Export)
-                } else {
-                    button("Export")
-                },
                 tooltip(
                     button("Set Export Path").on_press(Message::LookForOutputFolder),
                     format!("Path: {}", self.data.output.to_string_lossy()),
-                    tooltip::Position::Right
+                    tooltip::Position::Left
                 ),
+                if let Err(e) = self.can_save() {
+                    tooltip(button("Export"), e, tooltip::Position::Right)
+                } else {
+                    tooltip(
+                        button("Export").on_press(Message::Export),
+                        "Export to selected folder",
+                        tooltip::Position::Right,
+                    )
+                },
             ]
             .spacing(5)
             .align_items(Alignment::Center);
@@ -493,11 +547,7 @@ impl TokenMaker {
 
             // sourcers allow user to use already loaded image for the new frame
             let sourcers = col![
-                row![
-                    button("Cancel").on_press(Message::DisplayWorkspaces),
-                    text("Source from other workspace:"),
-                ]
-                .spacing(2),
+                text("Source from other workspace:"),
                 self.workspaces
                     .iter()
                     .enumerate()

@@ -2,21 +2,6 @@
 
 This document contains ideas and goals for the project as well as description of progress for each. Entries closer to the top can be considered of higher priority for current development.
 
-* Workspace Interface upgrade
-- Reorganize the top bar
-  + There are 3 major parts to it, workspace properties, list of modifiers and modifier properties.
-  + Laying it out in one row doesn't really work since everything gets squished.
-  + What would probably work is having two columns, one with workspace and modifier properties and one with the list of modifiers
-- Offset input so the user can manually input the offset when precision is needed
-  + Percentages or pixels in the input? Both?
-
-* Program Interface
-- Rename buttons to better represent their purpose
-- Make project name show up only when there's something loaded in
-- Export button should show a tooltip as to why it's disabled
-- Program should have a status bar or something to show log messages
-  + example would be to inform the user that image has been successfully exported
-
 * Art
 ** Themes
 - Primitive
@@ -40,11 +25,11 @@ For portraits
 ** Decorations
 Various minor icons that can be added onto the image
 
-* Image Source
+* TODO Image Source
 ** URL source
 User should be able to use url to obtain the image
 
-** Paste source
+** TODO Paste source
 copy pasting image into the program
 
 ** Drag and drop support

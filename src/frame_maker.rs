@@ -1,12 +1,15 @@
 use iced::{
-    widget::{button, column as col, horizontal_space, row, text, text_input},
-    Command, Element, Length, Renderer, Vector,
+    widget::{column as col, container, row, text, text_input, vertical_space},
+    Alignment, Command, Element, Length, Renderer, Vector,
 };
 use iced_native::image::Handle;
 use image::{Pixel, Rgba};
 
 use crate::{
-    data::{sanitize_file_name, sanitize_file_name_allow_path, FrameImage, ProgramData},
+    data::{
+        has_invalid_characters, sanitize_file_name, sanitize_file_name_allow_path, FrameImage,
+        ProgramData,
+    },
     image::{image_to_handle, GrayscaleImage, RgbaImage},
     widgets::PixelSampler,
 };
@@ -38,10 +41,6 @@ pub enum FrameMakerMessage {
     SetName(String),
     /// Sets the category for the frame
     SetCategory(String),
-    /// Closes the editor
-    Cancel,
-    /// Closes the editor and adds the frame to the program database
-    Accept,
 }
 
 impl FrameMaker {
@@ -82,7 +81,7 @@ impl FrameMaker {
     }
 
     /// Tests if the frame can be saved
-    fn can_save(&self) -> bool {
+    pub fn can_save(&self) -> bool {
         // must have the mask to save
         if self.mask.is_none() {
             return false;
@@ -98,39 +97,36 @@ impl FrameMaker {
     /// Constructs UI for the editor
     pub fn view(&self, _pdata: &ProgramData) -> Element<FrameMakerMessage, Renderer> {
         col![
+            vertical_space(5),
             row![
-                button("Cancel").on_press(FrameMakerMessage::Cancel),
-                horizontal_space(Length::Fill),
-                col![
-                    row![
-                        text("Name: "),
-                        text_input(
-                            "New Frame Name",
-                            &self.name,
-                            |x| FrameMakerMessage::SetName(x)
-                        ),
-                    ],
-                    row![
-                        text("Category: "),
-                        text_input("Category for new frame", &self.category, |x| {
-                            FrameMakerMessage::SetCategory(x)
-                        }),
-                    ]
-                ]
-                .width(Length::Fill),
-                horizontal_space(Length::Fill),
-                if self.can_save() {
-                    button("Save").on_press(FrameMakerMessage::Accept)
-                } else {
-                    button("Can't save yet")
-                }
-                .width(Length::Fill)
+                text("Name: "),
+                text_input(
+                    "New Frame Name",
+                    &self.name,
+                    |x| FrameMakerMessage::SetName(x)
+                ),
             ]
-            .align_items(iced::Alignment::Center)
+            .spacing(5)
+            .padding(5)
+            .align_items(Alignment::Center)
             .height(Length::Shrink),
-            PixelSampler::new(self.preview.clone(), |x| FrameMakerMessage::SelectedPixel(
-                x
-            )),
+            row![
+                text("Category: "),
+                text_input("Category for new frame", &self.category, |x| {
+                    FrameMakerMessage::SetCategory(x)
+                }),
+            ]
+            .spacing(5)
+            .padding(5)
+            .align_items(Alignment::Center)
+            .height(Length::Shrink),
+            container(PixelSampler::new(self.preview.clone(), |x| {
+                FrameMakerMessage::SelectedPixel(x)
+            }))
+            .center_x()
+            .center_y()
+            .width(Length::Fill)
+            .height(Length::Fill),
         ]
         .into()
     }
@@ -139,7 +135,7 @@ impl FrameMaker {
     pub fn update(
         &mut self,
         message: FrameMakerMessage,
-        _pdata: &mut ProgramData,
+        pdata: &mut ProgramData,
     ) -> Command<FrameMakerMessage> {
         match message {
             FrameMakerMessage::SelectedPixel(p) => {
@@ -155,16 +151,23 @@ impl FrameMaker {
                 Command::none()
             }
             FrameMakerMessage::SetName(n) => {
+                if has_invalid_characters(&n) {
+                    pdata
+                        .status
+                        .warning("Removed invalid characters from the name")
+                }
                 self.name = sanitize_file_name(n);
                 Command::none()
             }
             FrameMakerMessage::SetCategory(n) => {
+                if has_invalid_characters(&n) {
+                    pdata
+                        .status
+                        .warning("Removed invalid characters from the name")
+                }
                 self.category = sanitize_file_name_allow_path(n);
                 Command::none()
             }
-            // Those two should be hijacked by the program
-            FrameMakerMessage::Cancel => unreachable!(),
-            FrameMakerMessage::Accept => unreachable!(),
         }
     }
 }
