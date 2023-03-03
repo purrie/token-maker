@@ -12,7 +12,7 @@ use iced::{
 
 use crate::data::{load_frames, FrameImage, ProgramData, ProgramDataMessage};
 use crate::frame_maker::{FrameMaker, FrameMakerMessage};
-use crate::image::{image_arc_to_handle, RgbaImage};
+use crate::image::RgbaImage;
 use crate::style::Layout;
 use crate::widgets::{BrowserOperation, BrowsingResult, Target};
 use crate::workspace::{Workspace, WorkspaceMessage, WorkspaceTemplate};
@@ -25,12 +25,19 @@ pub struct TokenMaker {
     frame_maker: FrameMaker,
 
     new_workspace_template: WorkspaceTemplate,
+    download_in_progress: bool,
 }
 
 #[derive(Debug, Clone)]
 pub enum Message {
     /// Opens file browser to look for an image file
     LookForImage,
+    /// Grabs URL address from clipboard and passes it further to download
+    LookForImageFromUrl,
+    /// Starts a download of an image
+    DownloadImage(String),
+    /// Result of the image download
+    ImageDownloadResult(Result<RgbaImage, String>),
     /// Opens file browser to look for a folder to which workspaces will export their images
     LookForOutputFolder,
     /// Message related to the file browser
@@ -111,6 +118,7 @@ impl Application for TokenMaker {
                     operation: Mode::CreateWorkspace,
                     workspaces: Vec::new(),
                     frame_maker: FrameMaker::new(),
+                    download_in_progress: false,
                 };
                 s
             },
@@ -143,6 +151,50 @@ impl Application for TokenMaker {
                 self.data.file.refresh_path().unwrap();
                 Command::none()
             }
+
+            Message::LookForImageFromUrl => iced::clipboard::read(|clip| {
+                let Some(clip) = clip else {
+                        return Message::ImageDownloadResult(Err("Clipboard is empty".to_string()));
+                    };
+                Message::DownloadImage(clip)
+            }),
+
+            Message::DownloadImage(url) => {
+                self.download_in_progress = true;
+                Command::perform(
+                    async move {
+                        let Ok(res) = reqwest::get(url).await else {
+                        return Message::ImageDownloadResult(Err("Error: Clipboard doesn't contain a valid URL".to_string()));
+                    };
+                        let Ok(btes) = res.bytes().await else {
+                        return Message::ImageDownloadResult(Err("Error: Couldn't download image".to_string()))
+                    };
+                        let Ok(img) = image::load_from_memory(&btes) else {
+                        return Message::ImageDownloadResult(Err("Error: URL doesn't point to a valid image".to_string()));
+                    };
+                        let img = img.into_rgba8();
+                        Message::ImageDownloadResult(Ok(img))
+                    },
+                    |x| x,
+                )
+            }
+
+            Message::ImageDownloadResult(res) => {
+                self.download_in_progress = false;
+                match res {
+                    Ok(img) => {
+                        let name = String::from("image");
+                        let c = self.add_workspace(name, img.into());
+                        self.main_screen();
+                        c
+                    }
+                    Err(e) => {
+                        self.data.status.error(&e);
+                        Command::none()
+                    }
+                }
+            }
+
             Message::LookForOutputFolder => {
                 self.operation = Mode::FileBrowser(BrowsingFor::Output);
                 self.data.file.set_target(Target::Directory);
@@ -152,12 +204,14 @@ impl Application for TokenMaker {
                 self.data.file.refresh_path().unwrap();
                 Command::none()
             }
+
             Message::LookForFrame => {
                 self.operation = Mode::FileBrowser(BrowsingFor::Frame);
                 self.data.file.set_target(Target::Filtered("png".into()));
                 self.data.file.refresh_path().unwrap();
                 Command::none()
             }
+
             Message::FileBrowser(x) => {
                 if let Ok(x) = self.data.file.update(x) {
                     match x {
@@ -206,6 +260,7 @@ impl Application for TokenMaker {
                     Command::none()
                 }
             }
+
             Message::WorkspaceNewFromSource(index) => {
                 let command = if let Some(w) = self.workspaces.get(index) {
                     let img = w.get_source().clone();
@@ -217,19 +272,24 @@ impl Application for TokenMaker {
                 self.operation = Mode::Workspace;
                 command
             }
+
             Message::DisplayWorkspaceCreation => {
                 self.operation = Mode::CreateWorkspace;
                 Command::none()
             }
+
             Message::DisplayWorkspaces => {
                 self.main_screen();
                 Command::none()
             }
+
             Message::DisplaySettings => {
                 self.operation = Mode::Settings;
                 Command::none()
             }
+
             Message::SettingsMessage(x) => self.data.update(x).map(|x| Message::SettingsMessage(x)),
+
             Message::WorkspaceClose(index) => {
                 if self.workspaces.len() > index {
                     self.workspaces.remove(index);
@@ -240,10 +300,12 @@ impl Application for TokenMaker {
                 }
                 Command::none()
             }
+
             Message::WorkspaceSelect(i) => {
                 self.data.layout = Layout::Stacking(i);
                 Command::none()
             }
+
             Message::Workspace(index, message) => {
                 if let Some(workspace) = self.workspaces.get_mut(index) {
                     workspace
@@ -253,28 +315,34 @@ impl Application for TokenMaker {
                     Command::none()
                 }
             }
+
             Message::WorkspaceTemplate(t) => {
                 self.new_workspace_template = t;
                 Command::none()
             }
+
             Message::LoadedFrames(frames) => {
                 self.data.available_frames = frames;
                 Command::none()
             }
+
             Message::Error(e) => {
                 eprintln!("Error: {}", e);
                 self.data.status.error(&e);
                 Command::none()
             }
+
             Message::Export => {
                 self.workspaces.iter().for_each(|x| x.export(&self.data));
                 self.data.status.log("Export successful");
                 Command::none()
             }
+
             Message::FrameMakerMessage(x) => self
                 .frame_maker
                 .update(x, &mut self.data)
                 .map(|x| Message::FrameMakerMessage(x)),
+
             Message::FrameMakerExport => {
                 self.main_screen();
                 let frame = self.frame_maker.create_frame();
@@ -314,6 +382,7 @@ impl Application for TokenMaker {
             .center_y()
             .into()
     }
+
     fn subscription(&self) -> Subscription<Self::Message> {
         // collects subscribtions from workspaces and sends them to the framework
         // Everything is worked into regular workspace update cycle
@@ -341,6 +410,7 @@ impl TokenMaker {
             self.operation = Mode::CreateWorkspace;
         }
     }
+
     /// This function adds a new workspace with given data
     fn add_workspace(&mut self, name: String, image: Arc<RgbaImage>) -> Command<Message> {
         let i = self.workspaces.len();
@@ -388,6 +458,7 @@ impl TokenMaker {
         }
         Ok(())
     }
+
     /// Main program UI located at the top of the window
     fn top_bar(&self) -> Element<Message, Renderer> {
         let left = match self.operation {
@@ -477,6 +548,7 @@ impl TokenMaker {
     fn settings_view(&self) -> Element<Message, Renderer> {
         self.data.view().map(|x| Message::SettingsMessage(x))
     }
+
     /// Constructs UI for displaying all workspaces
     fn workspace_view(&self) -> Element<Message, Renderer> {
         // Handles converting the workspace message into program message
@@ -525,21 +597,35 @@ impl TokenMaker {
 
     /// Constructs UI for creating a new workspace
     fn workspace_add_view(&self) -> Element<Message, Renderer> {
-        let templates = col![
-            text("Template for new workspace:"),
-            WorkspaceTemplate::ALL
-                .iter()
-                .fold(row![].spacing(10), |r, wt| {
-                    let wt = *wt;
-                    let opt = radio(wt.to_string(), wt, Some(self.new_workspace_template), |x| {
-                        Message::WorkspaceTemplate(x)
-                    });
-                    r.push(opt)
-                }),
-        ]
-        .spacing(4);
+        if self.download_in_progress {
+            return row![
+                horizontal_space(Length::Fill),
+                text("Loading..."),
+                horizontal_space(Length::Fill),
+            ]
+            .align_items(Alignment::Center)
+            .height(Length::Fill)
+            .width(Length::Fill)
+            .into();
+        }
+        let templates = WorkspaceTemplate::ALL.iter().fold(
+            row![text("Template:")]
+                .spacing(10)
+                .align_items(Alignment::Center),
+            |r, wt| {
+                let wt = *wt;
+                let opt = radio(wt.to_string(), wt, Some(self.new_workspace_template), |x| {
+                    Message::WorkspaceTemplate(x)
+                });
+                r.push(opt)
+            },
+        );
 
-        let openers = button("Open file").on_press(Message::LookForImage);
+        let openers = row![
+            button("Open file").on_press(Message::LookForImage),
+            button("Paste URL").on_press(Message::LookForImageFromUrl),
+        ]
+        .spacing(5);
 
         if self.workspaces.len() > 0 {
             // checker has function of preventing multiple of the same image being shown to user
@@ -547,20 +633,21 @@ impl TokenMaker {
 
             // sourcers allow user to use already loaded image for the new frame
             let sourcers = col![
-                text("Source from other workspace:"),
+                text("Use Existing:"),
                 self.workspaces
                     .iter()
                     .enumerate()
-                    .fold(row![], |r, (i, w)| {
+                    .fold(row![].spacing(5), |r, (i, w)| {
                         let img = w.get_source();
                         if checker.contains(img) {
                             return r;
                         }
                         let r = r.push(
                             button(
-                                picture(image_arc_to_handle(img))
-                                    .content_fit(ContentFit::ScaleDown)
-                                    .width(Length::Shrink),
+                                picture(w.get_source_preview())
+                                    .content_fit(ContentFit::Contain)
+                                    .width(256)
+                                    .height(256),
                             )
                             .on_press(Message::WorkspaceNewFromSource(i)),
                         );
@@ -568,22 +655,23 @@ impl TokenMaker {
                         r
                     })
             ]
+            .align_items(Alignment::Center)
             .spacing(2);
 
             col![
                 vertical_space(Length::Fill),
                 templates,
-                vertical_space(Length::Fill),
-                sourcers,
-                vertical_space(Length::Fill),
+                vertical_space(10),
                 openers,
+                vertical_space(10),
+                sourcers,
                 vertical_space(Length::Fill)
             ]
         } else {
             col![
                 vertical_space(Length::Fill),
                 templates,
-                vertical_space(Length::Fill),
+                vertical_space(10),
                 openers,
                 vertical_space(Length::Fill)
             ]

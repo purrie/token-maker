@@ -5,7 +5,7 @@ use std::time::Duration;
 use iced::{
     widget::{
         button, column as col, container, horizontal_space, image::Handle, pick_list, row, text,
-        text_input, Row,
+        text_input, Column,
     },
     Alignment, Command, Element, Length, Point, Renderer, Size, Subscription,
 };
@@ -26,6 +26,8 @@ pub struct Workspace {
     source: Arc<RgbaImage>,
     /// Result of the latest rendering job
     cached_result: Handle,
+    /// Image used for displaying this workspace's preview when offering to copy the image for a new workspace
+    cached_preview: Handle,
     /// List of modifiers in order which they should be applied to the image
     modifiers: Vec<ModifierBox>,
     /// Currently selected modifier, used to choose which modifier should draw its UI
@@ -127,6 +129,7 @@ impl Workspace {
             data,
             modifiers,
 
+            cached_preview: image_arc_to_handle(&source),
             cached_result: image_arc_to_handle(&source),
             source,
             selected_modifier: 0,
@@ -308,6 +311,11 @@ impl Workspace {
         &self.source
     }
 
+    /// Returns a preview image
+    pub fn get_source_preview(&self) -> Handle {
+        self.cached_preview.clone()
+    }
+
     /// Returns the name this workspace will save the output to
     pub fn get_output_name(&self) -> &str {
         &self.data.output
@@ -344,17 +352,17 @@ impl Workspace {
         }
         .center_x()
         .center_y()
-        .height(Length::FillPortion(5))
+        .height(Length::Fill)
         .width(Length::Fill);
 
-        col![self.toolbar(pdata).height(Length::FillPortion(1)), preview,]
+        col![self.toolbar(pdata).height(Length::Shrink), preview,]
             .width(Length::Fill)
             .height(Length::Fill)
             .into()
     }
 
     /// Constructs the toolbar portion of the workspace UI
-    fn toolbar<'a>(&'a self, pdata: &ProgramData) -> Row<'a, WorkspaceMessage, Renderer> {
+    fn toolbar<'a>(&'a self, pdata: &ProgramData) -> Column<'a, WorkspaceMessage, Renderer> {
         // main controls are mostly for customizing the workspace
         let main_controls = col![
             row![
@@ -386,7 +394,7 @@ impl Workspace {
                 })
                 .width(Length::FillPortion(2)),
             ]
-            .height(Length::Fill)
+            .height(Length::Shrink)
             .spacing(5)
             .align_items(Alignment::Center),
             row![
@@ -417,7 +425,7 @@ impl Workspace {
                 })
                 .width(Length::FillPortion(2)),
             ]
-            .height(Length::Fill)
+            .height(Length::Shrink)
             .spacing(5)
             .align_items(Alignment::Center),
             row![
@@ -434,10 +442,12 @@ impl Workspace {
                 })
                 .width(Length::FillPortion(2)),
             ]
-            .height(Length::Fill)
+            .height(Length::Shrink)
             .spacing(5)
             .align_items(Alignment::Center),
         ]
+        .width(Length::Fill)
+        .height(Length::Shrink)
         .spacing(5);
 
         // list of modifiers, to allow switching between them
@@ -449,8 +459,8 @@ impl Workspace {
                     .placeholder("Add new"),
             ]
             .spacing(2)
-            .height(Length::Fill)
-            .width(Length::Fill),
+            .height(Length::Shrink)
+            .width(Length::Shrink),
             |col, (i, m)| {
                 let r = row![
                     button("X").on_press(WorkspaceMessage::RemoveModifier(i)),
@@ -462,7 +472,13 @@ impl Workspace {
             },
         );
 
-        let main_properties = if let Some(selected) = self
+        let top_bar = row![modifier_list, main_controls]
+            .spacing(5)
+            .width(Length::Fill)
+            .height(Length::Shrink);
+
+        // Switching between displaying just the regular controls and the UI for selected modifier
+        if let Some(selected) = self
             .modifiers
             .get(self.selected_modifier)
             .and_then(|x| x.properties_view(pdata, &self.data))
@@ -471,20 +487,12 @@ impl Workspace {
                 selected.map(move |x| WorkspaceMessage::ModifierMessage(self.selected_modifier, x));
             let modifier_properties = container(modifier_properties)
                 .width(Length::Fill)
-                .height(Length::Fill);
-            row![
-                modifier_properties.width(Length::Fill),
-                main_controls.width(Length::Fill),
-            ]
-            .spacing(10)
+                .height(Length::Shrink);
+            col![top_bar, modifier_properties,]
         } else {
-            row![main_controls]
-        };
-
-        row![
-            modifier_list.width(Length::FillPortion(1)),
-            main_properties.width(Length::FillPortion(5)),
-        ]
+            col![top_bar]
+        }
+        .width(Length::Fill)
         .spacing(10)
         .padding(5)
     }
