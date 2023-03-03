@@ -314,33 +314,92 @@ impl Default for WorkspaceData {
     }
 }
 
+pub const PROJECT_NAME: &str = "token-maker";
 pub const PROJECT_DATA_FOLDER: &str = "data";
-macro_rules! data_path {
+pub const PROJECT_FRAMES_FOLDER: &str = "frames";
+
+/// This is the primary data path intended for use in saving content to drive
+///
+/// This leads to the same folder as the executable is on windows and in debug build
+/// and to user data path on unix systems in release
+macro_rules! save_data_path {
     () => {{
-            let mut d = std::env::current_dir().unwrap();
-            d.push(PROJECT_DATA_FOLDER);
-            d
+            if cfg!(windows) || cfg!(debug_assertions) {
+                // if we're on windows or in debug build then we're expected to use the same directory as the binary is in
+                let mut d = std::env::current_dir().unwrap();
+                d.push(PROJECT_DATA_FOLDER);
+                d
+            } else {
+                // On unix we grab the path from user data location
+                let mut d = dirs::data_local_dir().unwrap();
+                d.push(PROJECT_NAME);
+                d
+            }
     }};
     ($($path:expr), +) => {{
-            // TODO change those to be proper path on release
-            let mut d = data_path!();
+            let mut d = save_data_path!();
             $(
                 d.push($path);
             )+
             d
     }}
 }
-pub(crate) use data_path;
+pub(crate) use save_data_path;
 
-macro_rules! frames_path {
+/// Path where it is expected to save the frames to
+macro_rules! save_frames_path {
     () => {
-        data_path!("frames")
+        save_data_path!(PROJECT_FRAMES_FOLDER)
     };
     ($($path:expr), +) => {{
-        data_path!("frames", $($path), +)
+        save_data_path!(PROJECT_FRAMES_FOLDER, $($path), +)
     }};
 }
-pub(crate) use frames_path;
+pub(crate) use save_frames_path;
+
+/// All the paths program can store any data to load from
+macro_rules! load_data_path {
+    ($($paths:expr),*) => {
+        [
+            {
+                let mut d = std::env::current_dir().unwrap();
+                d.push(PROJECT_DATA_FOLDER);
+                $(
+                    d.push($paths);
+                )*
+                d
+            },
+            {
+                let mut d = dirs::data_local_dir().unwrap();
+                d.push(PROJECT_NAME);
+                $(
+                    d.push($paths);
+                )*
+                d
+            },
+            {
+                let mut d = dirs::data_dir().unwrap();
+                d.push(PROJECT_NAME);
+                $(
+                    d.push($paths);
+                )*
+                d
+            }
+        ]
+    }
+}
+pub(crate) use load_data_path;
+
+/// All the paths the program searches to load data from
+macro_rules! load_frames_path {
+    () => {
+        load_data_path!(PROJECT_FRAMES_FOLDER)
+    };
+    ($($path:expr),+) => {
+        load_data_path!(PROJECT_FRAMES_FOLDER, $($path)+)
+    };
+}
+pub(crate) use load_frames_path;
 
 /// Removes any character from the string that could be problematic for use in file names.
 ///
@@ -451,7 +510,7 @@ impl FrameImage {
 
     /// Saves the frame using its name for path location
     pub fn save_frame(&self) {
-        let mut location = frames_path!(&self.category);
+        let mut location = save_frames_path!(&self.category);
         if location.exists() == false {
             create_dir_all(&location).unwrap();
         }
@@ -490,75 +549,93 @@ impl FrameImage {
 /// Function crawls through frames folder and gathers all images for frames and their masks
 pub async fn load_frames() -> std::io::Result<Vec<FrameImage>> {
     let mut res = vec![];
-    let mut dirs = vec![frames_path!()];
-    let mut load_frame = |mut path: PathBuf| {
-        // Skipping mask images since we're loading them together with their real image
-        let Some(name) = path.file_stem().and_then(|n| n.to_str()).and_then(|n| Some(n.to_string())) else {
-            return;
-        };
-        if name.contains("-mask") {
-            return;
-        }
-        let Ok(img) = image::open(&path) else {
-            return;
-        };
-
-        let img = img.into_rgba8();
-        let display = image_to_handle(img.clone());
-        let category = {
-            let mut path = path.clone();
-            path.pop();
-            let frames = format!("{}/", frames_path!().display());
-            let path = format!("{}", path.display());
-            if path.len() <= frames.len() {
-                String::from("Uncategoriezed")
-            } else {
-                path.replace(&frames, "")
-            }
-        };
-
-        // loading the mask here, then adding it to the final result if it succeeds
-        if let Some(ext) = path.extension().and_then(|x| x.to_str()) {
-            path.set_file_name(format!("{}-mask.{}", name, ext));
-        } else {
-            path.set_file_name(format!("{}-mask", name));
-        }
-
-        if let Ok(mask) = image::open(path) {
-            res.push(FrameImage {
-                name,
-                category,
-                display,
-                frame: Arc::new(img),
-                mask: Some(Arc::new(mask.into_luma8())),
-            });
-        } else {
-            res.push(FrameImage {
-                name,
-                category,
-                display,
-                frame: Arc::new(img),
-                mask: None,
-            });
-        }
-    };
+    let mut dirs = Vec::from(load_frames_path!());
 
     // loads all the images from the frames folder and its subfolders
     while let Some(p) = dirs.pop() {
+        // read directory or skip if that failed
         let Ok(dir) = read_dir(p) else {
             continue;
         };
+
         for d in dir {
             // Skip any entries that failed to load
             let Ok(d) = d else {
                 continue;
             };
-            let path = d.path();
+            let mut path = d.path();
+
+            // recurse into subdirectories
             if path.is_dir() {
                 dirs.push(path.clone());
                 continue;
             }
-            load_frame(path);
+
+            // Skipping mask images since we're loading them together with their real image
+            let Some(name) = path.file_stem().and_then(|n| n.to_str()).and_then(|n| Some(n.to_string())) else {
+                continue;
+            };
+            if name.contains("-mask") {
+                continue;
+            }
+
+            // loading the image
+            let Ok(img) = image::open(&path) else {
+                continue;
+            };
+
+            // converting the image into desired formats
+            let img = img.into_rgba8();
+            let display = image_to_handle(img.clone());
+
+            // Constructing the category for the image
+            let category = {
+                let mut image_folder = path.clone();
+                image_folder.pop();
+                let mut found = false;
+                let category = image_folder.iter().fold(String::from(""), |mut s, i| {
+                    if found {
+                        s.insert(0, '/');
+                        s.insert_str(0, i.to_str().unwrap());
+                        s
+                    } else {
+                        if i.to_string_lossy() == PROJECT_FRAMES_FOLDER {
+                            found = true;
+                        }
+                        s
+                    }
+                });
+                if category.len() == 0 {
+                    String::from("Uncategoriezed")
+                } else {
+                    category
+                }
+            };
+
+            // loading the mask here, then adding it to the final result if it succeeds
+            if let Some(ext) = path.extension().and_then(|x| x.to_str()) {
+                path.set_file_name(format!("{}-mask.{}", name, ext));
+            } else {
+                path.set_file_name(format!("{}-mask", name));
+            }
+
+            if let Ok(mask) = image::open(path) {
+                res.push(FrameImage {
+                    name,
+                    category,
+                    display,
+                    frame: Arc::new(img),
+                    mask: Some(Arc::new(mask.into_luma8())),
+                });
+            } else {
+                res.push(FrameImage {
+                    name,
+                    category,
+                    display,
+                    frame: Arc::new(img),
+                    mask: None,
+                });
+            }
         }
     }
 
