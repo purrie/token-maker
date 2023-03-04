@@ -2,14 +2,14 @@
 
 This document contains ideas and goals for the project as well as description of progress for each. Entries closer to the top can be considered of higher priority for current development.
 
-* Art
-** Themes
+* TODO Art
+** TODO Themes
 - Primitive
 - Fantasy
 - Modern
 - Sci-Fi
 
-** Frame Art
+** TODO Frame Art
 - Round frames
 - Square frames
 - Pentagonal frames
@@ -24,15 +24,6 @@ For portraits
 
 ** Decorations
 Various minor icons that can be added onto the image
-
-* TODO Image Source
-** URL source
-User should be able to use url to obtain the image
-
-** TODO Paste source
-copy pasting image into the program
-
-** Drag and drop support
 
 * Bugs
 - Trackpad doesn't release when the button is released off its area.
@@ -88,10 +79,13 @@ This could be implemented if the ImageOperations would take both working image a
 
 This could be implemented if there was a way for modifiers to store data that would be accessible to other modifiers down the line. There could be a hook modifier which would provide data for later modifiers. Something similar as what exists in Substance Painter
 
-* Prettification
-Sometimes after making enough progress, it would be a good idea to start styling the program so it doesn't look like trash.
-
+* UI/UX
+- Use styles to make the program look pretty
 - Export button should become red if any workspace points to a file that already exist
+- There should be a button that allows switching base/source image for all workspaces at once
+- Frames need to have improved frame choice UI and implement categories
+- Make offset be displayed at 0 instead of center of the image
+- Move close button to top bar and have it choose which workspace to close
 
 * Manual
 The program itself should have tooltips and other ways of instructing the user without needing to read through the actual manual for basic usage. The principle here is that an user should be able to install the program, turn it on and be able to produce a basic result with little to no external instruction.
@@ -113,6 +107,15 @@ This should be both a menu or set of buttons that will quickly add a workspace w
 - Need to implement a way to have multiple file extension filters at the same time to properly display all supported image formats when opening a file
 - Bookmarks for easier navigation
 - Image preview area to allow user to see the selected image file
+
+* TODO Image Source
+** DONE URL source
+User should be able to use url to obtain the image
+
+** TODO Paste source
+copy pasting image into the program
+
+** Drag and drop support
 
 * IDEA Screen capture
 Would be cool to have built in screen capture tool.
