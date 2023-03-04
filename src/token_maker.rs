@@ -530,7 +530,7 @@ impl TokenMaker {
             row![
                 left,
                 horizontal_space(Length::Fill),
-                center.width(Length::FillPortion(2)),
+                center.width(Length::FillPortion(4)),
                 horizontal_space(Length::Fill),
                 right,
             ]
