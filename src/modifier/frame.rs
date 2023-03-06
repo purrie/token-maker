@@ -7,8 +7,11 @@ use iced::{
 
 use image::imageops::resize;
 
-use crate::data::{FrameImage, ProgramData, WorkspaceData};
 use crate::image::{GrayscaleImage, ImageOperation, RgbaImage};
+use crate::{
+    data::{FrameImage, ProgramData, WorkspaceData},
+    persistence::PersistentKey,
+};
 
 use super::{Modifier, ModifierOperation};
 
@@ -47,7 +50,7 @@ impl Modifier for Frame {
         };
         let c = if let Some(frame) = pdata
             .cache
-            .get("frame-modifier", wdata.template.get_id())
+            .get(PersistentData::ID, wdata.template)
             .and_then(|x| x.check_string())
         {
             match pdata.available_frames.iter().find(|x| x.name() == frame) {
@@ -110,11 +113,9 @@ impl Modifier for Frame {
                 let Some(f) = pdata.available_frames.get(index) else {
                     return Command::none();
                 };
-                pdata.cache.set(
-                    "frame-modifier",
-                    wdata.template.get_id().to_string(),
-                    f.name(),
-                );
+                pdata
+                    .cache
+                    .set(PersistentData::ID, wdata.template, f.name());
                 self.set_frame(f, wdata)
             }
             FrameMessage::CancelFrame => {
@@ -257,5 +258,17 @@ async fn update_frame(
         (Arc::new(frame), Some(Arc::new(mask)))
     } else {
         (Arc::new(frame), None)
+    }
+}
+
+enum PersistentData {
+    ID,
+}
+
+impl PersistentKey for PersistentData {
+    fn get_id(&self) -> &'static str {
+        match self {
+            PersistentData::ID => "modifier-frame",
+        }
     }
 }

@@ -1,8 +1,9 @@
-mod cache;
 mod data;
 mod frame_maker;
 mod image;
 mod modifier;
+mod naming_convention;
+mod persistence;
 mod status_bar;
 mod style;
 mod token_maker;

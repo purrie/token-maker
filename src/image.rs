@@ -2,6 +2,7 @@ use std::{fmt::Display, sync::Arc};
 
 use iced::{widget::image::Handle, Point, Size};
 use image::{GenericImageView, ImageBuffer, Luma, Pixel, Rgba};
+use serde::{Deserialize, Serialize};
 
 pub type RgbaImage = ImageBuffer<Rgba<u8>, Vec<u8>>;
 pub type GrayscaleImage = ImageBuffer<Luma<u8>, Vec<u8>>;
@@ -50,7 +51,7 @@ impl ImageOperation {
     }
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 pub enum ImageFormat {
     WebP,
     Jpeg,

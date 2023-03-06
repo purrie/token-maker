@@ -13,12 +13,14 @@ use iced::{
 use iced_native::image::Data;
 use serde::{Deserialize, Serialize};
 
-use crate::data::{
-    has_invalid_characters, sanitize_file_name, NamingConvention, ProgramData, WorkspaceData,
-};
 use crate::image::{image_arc_to_handle, image_to_handle, ImageFormat, ImageOperation, RgbaImage};
 use crate::modifier::{ModifierBox, ModifierMessage, ModifierOperation, ModifierTag};
 use crate::widgets::Trackpad;
+use crate::{
+    data::{has_invalid_characters, sanitize_file_name, ProgramData, WorkspaceData},
+    naming_convention::NamingConvention,
+    persistence::{PersistentKey, PersistentValue},
+};
 
 /// Workspace serves purpose of providing tools to take the source image through series of operations to final result
 pub struct Workspace {
@@ -97,6 +99,17 @@ impl Workspace {
                 y: source.height() as f32 / 10.0,
             },
             template,
+            format: pdata
+                .cache
+                .get_copy(PersistentData::WorkspaceID, PersistentData::Format)
+                .and_then(|x| {
+                    if let PersistentValue::ImageFormat(x) = x {
+                        Some(x)
+                    } else {
+                        None
+                    }
+                })
+                .unwrap_or(ImageFormat::WebP),
             ..Default::default()
         };
         let mut modifiers = Vec::new();
@@ -228,6 +241,9 @@ impl Workspace {
             }
             WorkspaceMessage::SetFormat(format) => {
                 self.data.format = format;
+                pdata
+                    .cache
+                    .set(PersistentData::WorkspaceID, PersistentData::Format, format);
                 Command::none()
             }
             WorkspaceMessage::Close => {
@@ -548,18 +564,21 @@ impl WorkspaceTemplate {
         WorkspaceTemplate::Portrait,
     ];
 
-    pub fn get_id(&self) -> &'static str {
-        match self {
-            WorkspaceTemplate::None => "none",
-            WorkspaceTemplate::Token => "token",
-            WorkspaceTemplate::Portrait => "portrait",
-        }
-    }
     pub fn get_default_file_name(&self) -> &'static str {
         match self {
             WorkspaceTemplate::None => "",
             WorkspaceTemplate::Token => "-token",
             WorkspaceTemplate::Portrait => "-portrait",
+        }
+    }
+}
+
+impl PersistentKey for WorkspaceTemplate {
+    fn get_id(&self) -> &'static str {
+        match self {
+            WorkspaceTemplate::None => "none",
+            WorkspaceTemplate::Token => "token",
+            WorkspaceTemplate::Portrait => "portrait",
         }
     }
 }
@@ -575,5 +594,19 @@ impl Display for WorkspaceTemplate {
                 WorkspaceTemplate::Portrait => "Portrait",
             }
         )
+    }
+}
+
+enum PersistentData {
+    WorkspaceID,
+    Format,
+}
+
+impl PersistentKey for PersistentData {
+    fn get_id(&self) -> &'static str {
+        match self {
+            PersistentData::WorkspaceID => "workspace",
+            PersistentData::Format => "image-format",
+        }
     }
 }

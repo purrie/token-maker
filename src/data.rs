@@ -1,4 +1,3 @@
-use std::collections::HashMap;
 use std::fs::create_dir_all;
 use std::{fs::read_dir, path::PathBuf, sync::Arc};
 
@@ -6,7 +5,8 @@ use iced::widget::{column as col, horizontal_space, radio, row, text, text_input
 use iced::{Alignment, Command, Element, Length, Point, Renderer, Size};
 use iced_native::image::Handle;
 
-use crate::cache::{Cache, CacheValue};
+use crate::naming_convention::NamingConvention;
+use crate::persistence::{Persistence, PersistentKey, PersistentValue};
 use crate::status_bar::StatusBar;
 use crate::style::Layout;
 use crate::{
@@ -33,7 +33,7 @@ pub struct ProgramData {
     /// Naming conventions to use in the program
     pub naming: NamingConvention,
     /// Values saved across sessions
-    pub cache: Cache,
+    pub cache: Persistence,
 }
 
 /// Messages for customizing the program settings
@@ -46,26 +46,46 @@ pub enum ProgramDataMessage {
     SetProjectName(String),
 }
 
+enum PersistentData {
+    SettingsID,
+    FileBrowserID,
+    Theme,
+    Layout,
+    Output,
+    Folder,
+}
+impl PersistentKey for PersistentData {
+    fn get_id(&self) -> &'static str {
+        match self {
+            PersistentData::SettingsID => "settings",
+            PersistentData::FileBrowserID => "file-browser",
+            PersistentData::Theme => "theme",
+            PersistentData::Layout => "layout",
+            PersistentData::Output => "output",
+            PersistentData::Folder => "folder",
+        }
+    }
+}
+
 impl ProgramData {
-    const SETTINGS_ID: &str = "settings";
     pub fn new() -> ProgramData {
-        let cache = Cache::load();
+        let cache = Persistence::load();
         let file = match cache
-            .get("file-browser", "folder")
+            .get(PersistentData::FileBrowserID, PersistentData::Folder)
             .and_then(|x| x.check_string())
         {
             Some(p) => Browser::new(p),
             None => Browser::start_at_home(),
         };
-        let theme = match cache.get_copy(ProgramData::SETTINGS_ID, "theme") {
+        let theme = match cache.get_copy(PersistentData::SettingsID, PersistentData::Theme) {
             Some(t) => t.to_theme(),
             None => Theme::default(),
         };
-        let layout = match cache.get_copy(ProgramData::SETTINGS_ID, "layout") {
+        let layout = match cache.get_copy(PersistentData::SettingsID, PersistentData::Layout) {
             Some(l) => l.to_layout(),
             None => Layout::default(),
         };
-        let output = match cache.get_copy(ProgramData::SETTINGS_ID, "output") {
+        let output = match cache.get_copy(PersistentData::SettingsID, PersistentData::Output) {
             Some(o) => o.to_string(),
             None => String::new(),
         }
@@ -172,14 +192,20 @@ impl ProgramData {
         match message {
             ProgramDataMessage::SetTheme(t) => {
                 self.theme = t;
-                self.cache
-                    .set(ProgramData::SETTINGS_ID, "theme".to_string(), self.theme);
+                self.cache.set(
+                    PersistentData::SettingsID,
+                    PersistentData::Theme,
+                    self.theme,
+                );
                 Command::none()
             }
             ProgramDataMessage::SetLayout(l) => {
                 self.layout = l;
-                self.cache
-                    .set(ProgramData::SETTINGS_ID, "layout".to_string(), self.layout);
+                self.cache.set(
+                    PersistentData::SettingsID,
+                    PersistentData::Layout,
+                    self.layout,
+                );
                 Command::none()
             }
             ProgramDataMessage::SetNamingConvention(template, text) => {
@@ -207,73 +233,15 @@ impl Drop for ProgramData {
         // saving cache for browser, we do it here to not pollute the widget's module so it will be easier to extract it in case it's something worth using in another project
         let path = self.file.get_path().to_string_lossy().to_string();
         self.cache.set(
-            "file-browser",
-            "folder".to_string(),
-            CacheValue::String(path),
+            PersistentData::FileBrowserID,
+            PersistentData::Folder,
+            PersistentValue::String(path),
         );
         self.cache.set(
-            ProgramData::SETTINGS_ID,
-            "output".to_string(),
+            PersistentData::SettingsID,
+            PersistentData::Output,
             self.output.clone(),
         );
-    }
-}
-
-/// Structure holds information about default values for names used throughout the program
-#[derive(Debug)]
-pub struct NamingConvention {
-    convention: HashMap<WorkspaceTemplate, String>,
-    pub project_name: String,
-}
-
-impl NamingConvention {
-    pub const KEYWORD_PROJECT: &str = "$project_name";
-    const CACHE_ID: &str = "naming-convention";
-
-    /// Constructs new naming convention, loading default values from the cache if present
-    fn new(cache: &Cache) -> Self {
-        let mut convention = HashMap::new();
-        // Inserting default or saved names for each template type
-        WorkspaceTemplate::ALL.iter().for_each(|wt| {
-            convention.insert(
-                wt.clone(),
-                match cache.get(NamingConvention::CACHE_ID, wt.get_id()) {
-                    Some(n) => match n {
-                        CacheValue::String(n) => n.clone(),
-                        _ => format!(
-                            "{}{}",
-                            NamingConvention::KEYWORD_PROJECT,
-                            wt.get_default_file_name()
-                        ),
-                    },
-                    None => {
-                        format!(
-                            "{}{}",
-                            NamingConvention::KEYWORD_PROJECT,
-                            wt.get_default_file_name()
-                        )
-                    }
-                },
-            );
-        });
-        Self {
-            convention,
-            project_name: String::from(""),
-        }
-    }
-    /// Returns a copy of the naming convention for specified template
-    pub fn get(&self, template: &WorkspaceTemplate) -> String {
-        self.convention.get(template).unwrap().clone()
-    }
-    /// Borrows the naming convention for specified template
-    pub fn check(&self, template: &WorkspaceTemplate) -> &str {
-        self.convention.get(template).unwrap()
-    }
-    /// Sets naming convention for specified template, saving it to cache as well
-    pub fn set(&mut self, template: WorkspaceTemplate, name: String, cache: &mut Cache) {
-        let name = sanitize_file_name(name);
-        cache.set(Self::CACHE_ID, template.get_id().to_string(), name.clone());
-        self.convention.insert(template, name);
     }
 }
 

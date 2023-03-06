@@ -13,6 +13,7 @@ use iced::{
 use crate::data::{load_frames, FrameImage, ProgramData, ProgramDataMessage};
 use crate::frame_maker::{FrameMaker, FrameMakerMessage};
 use crate::image::RgbaImage;
+use crate::persistence::{PersistentKey, PersistentValue};
 use crate::style::Layout;
 use crate::widgets::{BrowserOperation, BrowsingResult, Target};
 use crate::workspace::{Workspace, WorkspaceMessage, WorkspaceTemplate};
@@ -113,8 +114,21 @@ impl Application for TokenMaker {
             {
                 let data = ProgramData::new();
                 let s = Self {
+                    new_workspace_template: data
+                        .cache
+                        .get_copy(
+                            PersistentData::TokenMakerID,
+                            PersistentData::DefaultTemplate,
+                        )
+                        .and_then(|x| {
+                            if let PersistentValue::WorkspaceTemplate(x) = x {
+                                Some(x)
+                            } else {
+                                None
+                            }
+                        })
+                        .unwrap_or_default(),
                     data,
-                    new_workspace_template: WorkspaceTemplate::None,
                     operation: Mode::CreateWorkspace,
                     workspaces: Vec::new(),
                     frame_maker: FrameMaker::new(),
@@ -318,6 +332,11 @@ impl Application for TokenMaker {
 
             Message::WorkspaceTemplate(t) => {
                 self.new_workspace_template = t;
+                self.data.cache.set(
+                    PersistentData::TokenMakerID,
+                    PersistentData::DefaultTemplate,
+                    self.new_workspace_template,
+                );
                 Command::none()
             }
 
@@ -681,5 +700,19 @@ impl TokenMaker {
         .width(Length::Fill)
         .align_items(Alignment::Center)
         .into()
+    }
+}
+
+enum PersistentData {
+    TokenMakerID,
+    DefaultTemplate,
+}
+
+impl PersistentKey for PersistentData {
+    fn get_id(&self) -> &'static str {
+        match self {
+            PersistentData::TokenMakerID => "token-maker",
+            PersistentData::DefaultTemplate => "default-template",
+        }
     }
 }
