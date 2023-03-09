@@ -3,19 +3,27 @@
 This document contains ideas and goals for the project as well as description of progress for each. Entries closer to the top can be considered of higher priority for current development.
 
 * TODO Art
-** TODO Themes
+** Themes
 - Primitive
+- Roman
+- Medieval
 - Fantasy
+- Pre-modern
 - Modern
+- Cyberpunk
 - Sci-Fi
 
 ** TODO Frame Art
-- Round frames
 - Square frames
 - Pentagonal frames
 - Hexagonal frames
 - Turned hexagonal frames
 - Octagonal frames
+*** Round Thin
+Most thin frames won't be very visible so they don't need anything elaborate on the frame itself.
+
+*** Round Thick
+Thick frames have enough space to have some basic patterns drawn on them.
 
 ** Card Art
 

@@ -1,16 +1,19 @@
 use std::sync::Arc;
 
 use iced::{
-    widget::{button, column as col, horizontal_space, row, scrollable},
-    Command, Length, Size,
+    widget::{button, column as col, horizontal_space, row, scrollable, text},
+    Color, Command, Length, Size,
 };
 
 use image::imageops::resize;
 
-use crate::image::{GrayscaleImage, ImageOperation, RgbaImage};
 use crate::{
     data::{FrameImage, ProgramData, WorkspaceData},
     persistence::PersistentKey,
+};
+use crate::{
+    image::{GrayscaleImage, ImageOperation, RgbaImage},
+    widgets::ColorPicker,
 };
 
 use super::{Modifier, ModifierOperation};
@@ -19,6 +22,8 @@ use super::{Modifier, ModifierOperation};
 pub enum FrameMessage {
     /// Result of resizing the frame to expected export size
     NewFrame(Arc<RgbaImage>, Option<Arc<GrayscaleImage>>),
+    /// Changes the tint of the frame
+    SetTint(Color),
     /// Opens the frame selection screen
     OpenFrameSelect,
     /// Signals the user selected a frame
@@ -35,6 +40,7 @@ pub struct Frame {
     mask: Option<Arc<GrayscaleImage>>,
     dirty: bool,
     select_frame: bool,
+    tint: Color,
 
     source: Option<Arc<RgbaImage>>,
     source_mask: Option<Arc<GrayscaleImage>>,
@@ -46,6 +52,7 @@ impl Modifier for Frame {
     fn create(pdata: &ProgramData, wdata: &WorkspaceData) -> (Command<Self::Message>, Self) {
         let mut s = Self {
             select_frame: true,
+            tint: Color::WHITE,
             ..Default::default()
         };
         let c = if let Some(frame) = pdata
@@ -62,15 +69,19 @@ impl Modifier for Frame {
         };
         (c, s)
     }
+
     fn label() -> &'static str {
         "Frame"
     }
+
     fn is_dirty(&self) -> bool {
         self.dirty
     }
+
     fn set_clean(&mut self) {
         self.dirty = false;
     }
+
     fn get_image_operation(
         &self,
         _pdata: &ProgramData,
@@ -95,9 +106,11 @@ impl Modifier for Frame {
             ModifierOperation::None
         }
     }
+
     fn wants_main_view(&self, _pdata: &ProgramData, _wdata: &WorkspaceData) -> bool {
         self.select_frame
     }
+
     fn properties_update(
         &mut self,
         message: Self::Message,
@@ -129,8 +142,25 @@ impl Modifier for Frame {
                 self.select_frame = false;
                 Command::none()
             }
+            FrameMessage::SetTint(c) => {
+                self.tint = c;
+                if let Some(frame) = &self.source {
+                    Command::perform(
+                        update_frame(
+                            frame.clone(),
+                            self.source_mask.clone(),
+                            self.tint,
+                            wdata.export_size,
+                        ),
+                        |x| FrameMessage::NewFrame(x.0, x.1),
+                    )
+                } else {
+                    Command::none()
+                }
+            }
         }
     }
+
     fn workspace_update(
         &mut self,
         _pdata: &ProgramData,
@@ -142,7 +172,12 @@ impl Modifier for Frame {
         if frame.width() != wdata.export_size.width || frame.height() != wdata.export_size.height {
             if let Some(source) = &self.source {
                 Command::perform(
-                    update_frame(source.clone(), self.source_mask.clone(), wdata.export_size),
+                    update_frame(
+                        source.clone(),
+                        self.source_mask.clone(),
+                        self.tint,
+                        wdata.export_size,
+                    ),
                     |x| FrameMessage::NewFrame(x.0, x.1),
                 )
             } else {
@@ -152,17 +187,27 @@ impl Modifier for Frame {
             Command::none()
         }
     }
+
     fn properties_view(
         &self,
         _pdata: &ProgramData,
         _wdata: &WorkspaceData,
     ) -> Option<iced::Element<Self::Message, iced::Renderer>> {
         Some(
-            button("Select Frame")
-                .on_press(FrameMessage::OpenFrameSelect)
-                .into(),
+            row![
+                button("Select Frame").on_press(FrameMessage::OpenFrameSelect),
+                horizontal_space(10),
+                text("Tint: "),
+                ColorPicker::new(self.tint, |c| FrameMessage::SetTint(c))
+                    .width(Length::Fixed(32.0))
+                    .height(Length::Fixed(32.0)),
+            ]
+            .align_items(iced::Alignment::Center)
+            .spacing(10)
+            .into(),
         )
     }
+
     fn main_view(
         &self,
         _image: iced_native::image::Handle,
@@ -175,6 +220,7 @@ impl Modifier for Frame {
             .padding(2)
             .width(Length::Fill)
             .height(Length::Fill);
+
         // those counters are used for both messaging to know which button was clicked and for layout
         let mut total = 0;
         let mut count = 0;
@@ -185,6 +231,7 @@ impl Modifier for Frame {
             .spacing(2)
             .width(Length::Fill)
             .height(Length::Shrink);
+
         // this collects frames in rows
         for img in pdata.available_frames.iter() {
             if count > 3 {
@@ -204,6 +251,7 @@ impl Modifier for Frame {
             total += 1;
             count += 1;
         }
+
         // last row won't be pushed in the loop so if it has any items in it, we add it here
         if count > 0 {
             images = images.push(row);
@@ -227,12 +275,12 @@ impl Frame {
         self.select_frame = false;
         self.source = Some(frame.image());
         self.source_mask = frame.mask();
-        let size = wdata.export_size;
         let mask = frame.mask();
         let frame = frame.image();
-        Command::perform(update_frame(frame, mask, size), |x| {
-            FrameMessage::NewFrame(x.0, x.1)
-        })
+        Command::perform(
+            update_frame(frame, mask, self.tint, wdata.export_size),
+            |x| FrameMessage::NewFrame(x.0, x.1),
+        )
     }
 }
 
@@ -240,14 +288,25 @@ impl Frame {
 async fn update_frame(
     frame: Arc<RgbaImage>,
     mask: Option<Arc<GrayscaleImage>>,
+    tint: Color,
     size: Size<u32>,
 ) -> (Arc<RgbaImage>, Option<Arc<GrayscaleImage>>) {
-    let frame = resize(
+    let mut frame = resize(
         frame.as_ref(),
         size.width,
         size.height,
         image::imageops::FilterType::Nearest,
     );
+
+    frame.pixels_mut().filter(|x| x[3] > 0).for_each(|x| {
+        let r = (x[0] as f32 / u8::MAX as f32) * tint.r;
+        let g = (x[1] as f32 / u8::MAX as f32) * tint.g;
+        let b = (x[2] as f32 / u8::MAX as f32) * tint.b;
+        x[0] = (r * u8::MAX as f32) as u8;
+        x[1] = (g * u8::MAX as f32) as u8;
+        x[2] = (b * u8::MAX as f32) as u8;
+    });
+
     if let Some(mask) = mask {
         let mask = resize(
             mask.as_ref(),

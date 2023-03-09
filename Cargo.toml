@@ -15,10 +15,13 @@ features = ["webp-encoder"]
 
 [dependencies.iced]
 version = "0.8"
-features = ["image", "tokio"]
+features = ["image", "tokio", "canvas"]
 
 [dependencies.iced_native]
 version = "0.9"
+
+[dependencies.iced_graphics]
+version = "0.7"
 
 [dependencies.tokio]
 version = "1.25"
