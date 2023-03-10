@@ -18,7 +18,7 @@ This document contains ideas and goals for the project as well as description of
 - Pentagonal frames
 - Hexagonal frames
 - Turned hexagonal frames
-- Octagonal frames
+
 *** Round Thin
 Most thin frames won't be very visible so they don't need anything elaborate on the frame itself.
 

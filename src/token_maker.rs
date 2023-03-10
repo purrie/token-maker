@@ -1,4 +1,5 @@
 use std::collections::HashSet;
+use std::path::PathBuf;
 use std::sync::Arc;
 
 use iced::widget::{
@@ -161,7 +162,7 @@ impl Application for TokenMaker {
         match message {
             Message::LookForImage => {
                 self.operation = Mode::FileBrowser(BrowsingFor::Token);
-                self.data.file.set_target(Target::Filtered("png".into()));
+                self.data.file.set_filter(image_filter);
                 self.data.file.refresh_path().unwrap();
                 Command::none()
             }
@@ -221,7 +222,7 @@ impl Application for TokenMaker {
 
             Message::LookForFrame => {
                 self.operation = Mode::FileBrowser(BrowsingFor::Frame);
-                self.data.file.set_target(Target::Filtered("png".into()));
+                self.data.file.set_filter(image_filter);
                 self.data.file.refresh_path().unwrap();
                 Command::none()
             }
@@ -714,5 +715,16 @@ impl PersistentKey for PersistentData {
             PersistentData::TokenMakerID => "token-maker",
             PersistentData::DefaultTemplate => "default-template",
         }
+    }
+}
+
+fn image_filter(path: &PathBuf) -> bool {
+    let Some(ext) = path.extension().and_then(|x| Some(x.to_string_lossy().to_lowercase())) else {
+        return false;
+    };
+
+    match ext.as_str() {
+        "png" | "webp" | "jpg" | "jpeg" => true,
+        _ => false,
     }
 }

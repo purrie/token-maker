@@ -31,12 +31,13 @@ pub enum BrowsingResult {
 pub enum Target {
     #[default]
     File,
-    Filtered(String),
+    Filtered(Box<dyn Fn(&PathBuf) -> bool>),
     Directory,
 }
 
 #[allow(unused)]
 impl Browser {
+    /// Creates a browser and sets its current directory to supplied path
     pub fn new<P: Into<PathBuf>>(path: P) -> Self {
         Self {
             path: path.into(),
@@ -45,6 +46,8 @@ impl Browser {
             target: Target::File,
         }
     }
+
+    /// Creates a browser and sets browser path to home directory
     pub fn start_at_home() -> Self {
         let path = dirs::home_dir().unwrap();
         Self {
@@ -54,15 +57,28 @@ impl Browser {
             target: Target::File,
         }
     }
+
+    /// Sets current path for the browser
     pub fn set_path<P: Into<PathBuf>>(&mut self, path: P) {
         self.path = path.into()
     }
+
+    /// Peeks current path of the browser
     pub fn get_path(&self) -> &PathBuf {
         &self.path
     }
+
+    /// Sets target to file with supplied filter function
+    pub fn set_filter<F: Fn(&PathBuf) -> bool + 'static>(&mut self, filter: F) {
+        self.target = Target::Filtered(Box::new(filter));
+    }
+
+    /// Sets target to filter out specific results in the browser
     pub fn set_target(&mut self, target: Target) {
         self.target = target;
     }
+
+    /// Updates browser cache with files and directories from current path
     pub fn refresh_path(&mut self) -> Result<(), std::io::Error> {
         self.dir.clear();
         let dir = std::fs::read_dir(&self.path)?;
@@ -70,9 +86,8 @@ impl Browser {
             if let Ok(f) = f {
                 let path = f.path();
                 match &self.target {
-                    Target::Filtered(f) if !is_filter_match(&f, &path) && path.is_file() => {
-                        continue
-                    }
+                    // skipping files the filter deems unwanted
+                    Target::Filtered(f) if path.is_file() && f(&path) == false => continue,
                     Target::Directory if path.is_file() => continue,
                     _ => self.dir.push(path),
                 }
@@ -81,6 +96,7 @@ impl Browser {
 
         Ok(())
     }
+
     pub fn update(&mut self, message: BrowserOperation) -> Result<BrowsingResult, std::io::Error> {
         match message {
             BrowserOperation::MoveUp => {
@@ -162,7 +178,7 @@ impl Browser {
             (Target::File, Some(p)) if p.is_file() => {
                 button("Accept").on_press(BrowserOperation::Accept)
             }
-            (Target::Filtered(filter), Some(p)) if is_filter_match(&filter, &p) => {
+            (Target::Filtered(filter), Some(p)) if filter(&p) => {
                 button("Accept").on_press(BrowserOperation::Accept)
             }
             (Target::Directory, _) => button("Accept").on_press(BrowserOperation::Accept),
@@ -172,13 +188,12 @@ impl Browser {
         let ui = col![
             row![
                 button("Cancel").on_press(BrowserOperation::Cancel),
-                text("|"),
                 move_up,
-                text("|"),
                 text(format!("Directory: {}", self.path.to_string_lossy())),
                 horizontal_space(Length::Fill),
                 accept
             ]
+            .spacing(10)
             .height(Length::Shrink)
             .width(Length::Fill),
             scrollable(file_list).height(Length::Fill),
@@ -188,14 +203,8 @@ impl Browser {
 
         container(ui)
     }
+
     pub fn view(&self) -> Element<BrowserOperation, Renderer> {
         self.view_raw().into()
     }
-}
-
-fn is_filter_match(filter: &str, path: &PathBuf) -> bool {
-    path.extension()
-        .and_then(|x| x.to_str())
-        .and_then(|x| if x == filter { Some(()) } else { None })
-        .is_some()
 }
