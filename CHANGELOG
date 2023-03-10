@@ -1,0 +1,15 @@
+# Changelog
+
+# 0.4.0
+- Added color picker to frame modifier to allow tinting frame colors
+- Added a bunch of new frame types to use in the frame modifier
+- The file browser is able to take more image formats as valid source now
+
+# 0.3.0
+- Added stacking layout for workspaces
+- Added Settings screen
+- Added frame maker editor
+- Added ability to pase URL into the program to use images from the internet
+
+# 0.2.0
+- Basic functionality
