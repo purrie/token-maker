@@ -58,6 +58,11 @@ impl FrameMaker {
         }
     }
 
+    /// Changes name displayed in the editor
+    pub fn set_name(&mut self, name: String) {
+        self.name = name;
+    }
+
     /// Loads provided image into the editor, making it ready for display
     pub fn load(&mut self, frame: RgbaImage) {
         self.name = String::from("new-frame");

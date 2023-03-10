@@ -262,6 +262,12 @@ impl Application for TokenMaker {
                                     if let Ok(img) = image::open(&path) {
                                         let img = img.into_rgba8();
                                         self.frame_maker.load(img);
+                                        self.frame_maker.set_name(
+                                            path.file_stem()
+                                                .and_then(|x| x.to_str())
+                                                .and_then(|x| Some(x.to_string()))
+                                                .unwrap(),
+                                        );
                                         self.operation = Mode::FrameMaker;
                                     } else {
                                         self.main_screen();
