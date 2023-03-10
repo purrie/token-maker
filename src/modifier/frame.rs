@@ -246,7 +246,7 @@ impl Modifier for Frame {
             }
             row = row.push(
                 button(iced::widget::image(img.preview()).content_fit(iced::ContentFit::Contain))
-                    .on_press(FrameMessage::FrameSelected(total)),
+                    .on_press(FrameMessage::FrameSelected(total)).width(Length::Fill),
             );
             total += 1;
             count += 1;
