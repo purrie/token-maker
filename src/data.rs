@@ -428,6 +428,8 @@ pub struct FrameImage {
     frame: Arc<RgbaImage>,
     /// Optional mask for the frame
     mask: Option<Arc<GrayscaleImage>>,
+    /// Identifier used to distinguish the frame from others
+    id: String,
 }
 
 impl FrameImage {
@@ -447,18 +449,20 @@ impl FrameImage {
         let display = image_to_handle(frame.clone());
         let frame = Arc::new(frame);
         let mask = mask.and_then(|x| Some(Arc::new(x)));
+        let id = format!("{}/{}", category, name);
         Self {
             name,
             category,
             display,
             frame,
             mask,
+            id,
         }
     }
 
-    /// Name of the frame, it coresponds to the file name
-    pub fn name(&self) -> &str {
-        &self.name
+    /// Identifier used to uniquely identify this frame image from any other
+    pub fn id(&self) -> &str {
+        &self.id
     }
 
     /// Clones the image handle
@@ -554,7 +558,6 @@ pub async fn load_frames() -> std::io::Result<Vec<FrameImage>> {
 
             // converting the image into desired formats
             let img = img.into_rgba8();
-            let display = image_to_handle(img.clone());
 
             // Constructing the category for the image
             let category = {
@@ -588,21 +591,14 @@ pub async fn load_frames() -> std::io::Result<Vec<FrameImage>> {
             }
 
             if let Ok(mask) = image::open(path) {
-                res.push(FrameImage {
+                res.push(FrameImage::new(
                     name,
                     category,
-                    display,
-                    frame: Arc::new(img),
-                    mask: Some(Arc::new(mask.into_luma8())),
-                });
+                    img,
+                    Some(mask.into_luma8()),
+                ));
             } else {
-                res.push(FrameImage {
-                    name,
-                    category,
-                    display,
-                    frame: Arc::new(img),
-                    mask: None,
-                });
+                res.push(FrameImage::new(name, category, img, None));
             }
         }
     }

@@ -2,36 +2,13 @@
 
 This document contains ideas and goals for the project as well as description of progress for each. Entries closer to the top can be considered of higher priority for current development.
 
-* TODO Art
-** Themes
-- Primitive
-- Roman
-- Medieval
-- Fantasy
-- Pre-modern
-- Modern
-- Cyberpunk
-- Sci-Fi
-
-** TODO Frame Art
-- Square frames
-- Pentagonal frames
-- Hexagonal frames
-- Turned hexagonal frames
-
-*** Round Thin
-Most thin frames won't be very visible so they don't need anything elaborate on the frame itself.
-
-*** Round Thick
-Thick frames have enough space to have some basic patterns drawn on them.
-
-** Card Art
-
-** Border frames
-For portraits
-
-** Decorations
-Various minor icons that can be added onto the image
+* TODO UI/UX
+- Use styles to make the program look pretty
+- Export button should become red if any workspace points to a file that already exist
+- There should be a button that allows switching base/source image for all workspaces at once
+- Frames need to have improved frame choice UI and implement categories
+- Make offset be displayed at 0 instead of center of the image
+- Move close button to top bar and have it choose which workspace to close
 
 * Bugs
 - Trackpad doesn't release when the button is released off its area.
@@ -87,13 +64,36 @@ This could be implemented if the ImageOperations would take both working image a
 
 This could be implemented if there was a way for modifiers to store data that would be accessible to other modifiers down the line. There could be a hook modifier which would provide data for later modifiers. Something similar as what exists in Substance Painter
 
-* UI/UX
-- Use styles to make the program look pretty
-- Export button should become red if any workspace points to a file that already exist
-- There should be a button that allows switching base/source image for all workspaces at once
-- Frames need to have improved frame choice UI and implement categories
-- Make offset be displayed at 0 instead of center of the image
-- Move close button to top bar and have it choose which workspace to close
+* TODO Art
+** Themes
+- Primitive
+- Roman
+- Medieval
+- Fantasy
+- Pre-modern
+- Modern
+- Cyberpunk
+- Sci-Fi
+
+** TODO Frame Art
+- Square frames
+- Pentagonal frames
+- Hexagonal frames
+- Turned hexagonal frames
+
+*** Round Thin
+Most thin frames won't be very visible so they don't need anything elaborate on the frame itself.
+
+*** Round Thick
+Thick frames have enough space to have some basic patterns drawn on them.
+
+** Card Art
+
+** Border frames
+For portraits
+
+** Decorations
+Various minor icons that can be added onto the image
 
 * Manual
 The program itself should have tooltips and other ways of instructing the user without needing to read through the actual manual for basic usage. The principle here is that an user should be able to install the program, turn it on and be able to produce a basic result with little to no external instruction.

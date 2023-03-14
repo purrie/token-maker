@@ -10,6 +10,7 @@ use image::imageops::resize;
 use crate::{
     data::{FrameImage, ProgramData, WorkspaceData},
     persistence::PersistentKey,
+    style::Style,
 };
 use crate::{
     image::{GrayscaleImage, ImageOperation, RgbaImage},
@@ -51,7 +52,6 @@ impl Modifier for Frame {
 
     fn create(pdata: &ProgramData, wdata: &WorkspaceData) -> (Command<Self::Message>, Self) {
         let mut s = Self {
-            select_frame: true,
             tint: Color::WHITE,
             ..Default::default()
         };
@@ -60,9 +60,12 @@ impl Modifier for Frame {
             .get(PersistentData::ID, wdata.template)
             .and_then(|x| x.check_string())
         {
-            match pdata.available_frames.iter().find(|x| x.name() == frame) {
+            match pdata.available_frames.iter().find(|x| x.id() == frame) {
                 Some(f) => s.set_frame(f, wdata),
-                None => Command::none(),
+                None => {
+                    s.select_frame = true;
+                    Command::none()
+                }
             }
         } else {
             Command::none()
@@ -126,9 +129,7 @@ impl Modifier for Frame {
                 let Some(f) = pdata.available_frames.get(index) else {
                     return Command::none();
                 };
-                pdata
-                    .cache
-                    .set(PersistentData::ID, wdata.template, f.name());
+                pdata.cache.set(PersistentData::ID, wdata.template, f.id());
                 self.set_frame(f, wdata)
             }
             FrameMessage::CancelFrame => {
@@ -194,15 +195,13 @@ impl Modifier for Frame {
         _wdata: &WorkspaceData,
     ) -> Option<iced::Element<Self::Message, iced::Renderer>> {
         Some(
-            row![
+            col![
                 button("Select Frame").on_press(FrameMessage::OpenFrameSelect),
-                horizontal_space(10),
                 text("Tint: "),
                 ColorPicker::new(self.tint, |c| FrameMessage::SetTint(c))
                     .width(Length::Fixed(32.0))
                     .height(Length::Fixed(32.0)),
             ]
-            .align_items(iced::Alignment::Center)
             .spacing(10)
             .into(),
         )
@@ -246,7 +245,9 @@ impl Modifier for Frame {
             }
             row = row.push(
                 button(iced::widget::image(img.preview()).content_fit(iced::ContentFit::Contain))
-                    .on_press(FrameMessage::FrameSelected(total)).width(Length::Fill),
+                    .on_press(FrameMessage::FrameSelected(total))
+                    .width(Length::Fill)
+                    .style(Style::Frame.into()),
             );
             total += 1;
             count += 1;

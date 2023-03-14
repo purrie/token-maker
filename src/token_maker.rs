@@ -15,7 +15,7 @@ use crate::data::{load_frames, FrameImage, ProgramData, ProgramDataMessage};
 use crate::frame_maker::{FrameMaker, FrameMakerMessage};
 use crate::image::RgbaImage;
 use crate::persistence::{PersistentKey, PersistentValue};
-use crate::style::Layout;
+use crate::style::{Layout, Style};
 use crate::widgets::{BrowserOperation, BrowsingResult, Target};
 use crate::workspace::{Workspace, WorkspaceMessage, WorkspaceTemplate};
 
@@ -529,7 +529,7 @@ impl TokenMaker {
         }
         .spacing(5);
 
-        if self.workspaces.len() > 0 && self.operation == Mode::Workspace {
+        let bar = if self.workspaces.len() > 0 && self.operation == Mode::Workspace {
             let center = row![
                 text("Project Name: "),
                 text_input("Project Name", &self.data.naming.project_name, |x| {
@@ -564,10 +564,14 @@ impl TokenMaker {
             row![left, horizontal_space(Length::Fill), right,]
         }
         .align_items(Alignment::Center)
-        .spacing(2)
-        .width(Length::Fill)
-        .height(Length::Shrink)
-        .into()
+        .spacing(2);
+
+        container(bar)
+            .padding(5)
+            .style(Style::Header)
+            .width(Length::Fill)
+            .height(Length::Shrink)
+            .into()
     }
 
     /// Constructs UI for customizing program settings
@@ -624,16 +628,23 @@ impl TokenMaker {
     /// Constructs UI for creating a new workspace
     fn workspace_add_view(&self) -> Element<Message, Renderer> {
         if self.download_in_progress {
-            return row![
+            let content = row![
                 horizontal_space(Length::Fill),
-                text("Loading..."),
+                container(text("Loading..."))
+                    .style(Style::Frame)
+                    .padding(20),
                 horizontal_space(Length::Fill),
             ]
             .align_items(Alignment::Center)
             .height(Length::Fill)
-            .width(Length::Fill)
-            .into();
+            .width(Length::Fill);
+            return container(content)
+                .width(Length::Fill)
+                .height(Length::Fill)
+                .style(Style::Margins)
+                .into();
         }
+
         let templates = WorkspaceTemplate::ALL.iter().fold(
             row![text("Template:")]
                 .spacing(10)
@@ -653,7 +664,10 @@ impl TokenMaker {
         ]
         .spacing(5);
 
-        if self.workspaces.len() > 0 {
+        let templates = container(templates).style(Style::Frame).padding(20);
+        let openers = container(openers).style(Style::Frame).padding(20);
+
+        let ui = if self.workspaces.len() > 0 {
             // checker has function of preventing multiple of the same image being shown to user
             let mut checker = HashSet::new();
 
@@ -675,6 +689,7 @@ impl TokenMaker {
                                     .width(256)
                                     .height(256),
                             )
+                            .style(Style::Frame.into())
                             .on_press(Message::WorkspaceNewFromSource(i)),
                         );
                         checker.insert(img);
@@ -705,8 +720,13 @@ impl TokenMaker {
         .spacing(4)
         .height(Length::Fill)
         .width(Length::Fill)
-        .align_items(Alignment::Center)
-        .into()
+        .align_items(Alignment::Center);
+
+        container(ui)
+            .width(Length::Fill)
+            .height(Length::Fill)
+            .style(Style::Margins)
+            .into()
     }
 }
 

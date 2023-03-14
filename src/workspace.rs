@@ -4,22 +4,25 @@ use std::time::Duration;
 
 use iced::{
     widget::{
-        button, column as col, container, horizontal_space, image::Handle, pick_list, row, text,
-        text_input, Column,
+        button, column as col, container, horizontal_space, image::Handle, row, scrollable, text,
+        text_input,
     },
     Alignment, Command, Element, Length, Point, Renderer, Size, Subscription,
 };
 
-use iced_native::image::Data;
+use iced_native::{image::Data, widget::PickList};
 use serde::{Deserialize, Serialize};
 
-use crate::image::{image_arc_to_handle, image_to_handle, ImageFormat, ImageOperation, RgbaImage};
 use crate::modifier::{ModifierBox, ModifierMessage, ModifierOperation, ModifierTag};
 use crate::widgets::Trackpad;
 use crate::{
     data::{has_invalid_characters, sanitize_file_name, ProgramData, WorkspaceData},
     naming_convention::NamingConvention,
     persistence::{PersistentKey, PersistentValue},
+};
+use crate::{
+    image::{image_arc_to_handle, image_to_handle, ImageFormat, ImageOperation, RgbaImage},
+    style::Style,
 };
 
 /// Workspace serves purpose of providing tools to take the source image through series of operations to final result
@@ -366,26 +369,27 @@ impl Workspace {
                 .position_step(2.0);
             container(img)
         }
+        .style(Style::Margins)
         .center_x()
         .center_y()
-        .height(Length::Fill)
+        .height(Length::FillPortion(3))
         .width(Length::Fill);
 
-        col![self.toolbar(pdata).height(Length::Shrink), preview,]
+        col![self.toolbar(pdata), preview]
             .width(Length::Fill)
             .height(Length::Fill)
             .into()
     }
 
     /// Constructs the toolbar portion of the workspace UI
-    fn toolbar<'a>(&'a self, pdata: &ProgramData) -> Column<'a, WorkspaceMessage, Renderer> {
+    fn toolbar<'a>(&'a self, pdata: &ProgramData) -> Element<'a, WorkspaceMessage, Renderer> {
         // main controls are mostly for customizing the workspace
         let main_controls = col![
             row![
                 text_input("Output name", &self.data.output, |x| {
                     WorkspaceMessage::OutputNameChange(x)
                 }),
-                pick_list(&ImageFormat::EXPORTABLE[..], Some(self.data.format), |x| {
+                PickList::new(&ImageFormat::EXPORTABLE[..], Some(self.data.format), |x| {
                     WorkspaceMessage::SetFormat(x)
                 }),
                 horizontal_space(5),
@@ -469,14 +473,11 @@ impl Workspace {
         // list of modifiers, to allow switching between them
         let modifier_list = self.modifiers.iter().enumerate().fold(
             // column for modifiers
-            col![
-                text("Active Modifiers:"),
-                pick_list(&ModifierTag::ALL[..], None, WorkspaceMessage::AddModifier)
-                    .placeholder("Add new"),
-            ]
-            .spacing(2)
-            .height(Length::Shrink)
-            .width(Length::Shrink),
+            col![]
+                .spacing(2)
+                .padding(5)
+                .height(Length::Shrink)
+                .width(Length::Shrink),
             |col, (i, m)| {
                 let r = row![
                     button("X").on_press(WorkspaceMessage::RemoveModifier(i)),
@@ -488,29 +489,54 @@ impl Workspace {
             },
         );
 
-        let top_bar = row![modifier_list, main_controls]
-            .spacing(5)
+        let modifier_list = row![modifier_list, horizontal_space(8)];
+        let modifier_list = scrollable(modifier_list).height(Length::Fill);
+        let modifiers = PickList::new(&ModifierTag::ALL[..], None, WorkspaceMessage::AddModifier)
+            .placeholder("Add new");
+
+        let modifier_list = col![text("Active Modifiers:"), modifiers, modifier_list,].spacing(5);
+
+        let main_controls = container(main_controls)
             .width(Length::Fill)
-            .height(Length::Shrink);
+            .style(Style::Frame)
+            .padding(5);
+        let modifier_list = container(modifier_list)
+            .width(Length::Shrink)
+            .style(Style::Frame)
+            .padding(5);
 
         // Switching between displaying just the regular controls and the UI for selected modifier
-        if let Some(selected) = self
+        let top = if let Some(selected) = self
             .modifiers
             .get(self.selected_modifier)
             .and_then(|x| x.properties_view(pdata, &self.data))
         {
             let modifier_properties =
                 selected.map(move |x| WorkspaceMessage::ModifierMessage(self.selected_modifier, x));
+
             let modifier_properties = container(modifier_properties)
+                .padding(5)
+                .style(Style::Frame)
                 .width(Length::Fill)
-                .height(Length::Shrink);
-            col![top_bar, modifier_properties,]
+                .height(Length::Fill);
+
+            row![
+                modifier_list,
+                col![main_controls, modifier_properties]
+                    .spacing(2)
+                    .width(Length::Fill)
+            ]
         } else {
-            col![top_bar]
+            row![modifier_list, main_controls]
         }
         .width(Length::Fill)
-        .spacing(10)
-        .padding(5)
+        .spacing(2)
+        .padding(2);
+
+        container(top)
+            .style(Style::Margins)
+            .height(Length::Fill)
+            .into()
     }
 
     /// Exports latest preview image to drive
