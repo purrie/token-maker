@@ -1,0 +1,8 @@
+Package: Token Maker
+Version: DEB_VERSION
+Section: graphics
+Priority: optional
+Architecture: amd64
+"Maintainer: Purrie Brightstar <purriestarshine@gmail.com>"
+"Homepage: https://github.com/purrie/$NAME"
+Description: Program for making tabletop assets

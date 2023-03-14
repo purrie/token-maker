@@ -1,0 +1,228 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - "v*.*.*"
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v3
+    - name: Build
+      run: cargo build --verbose
+    - name: Run tests
+      run: cargo test --verbose
+
+  metadata:
+    runs-on: ubuntu-latest
+    needs: test
+    outputs:
+      name:          ${{ steps.metadata.outputs.name        }}
+      version:       ${{ steps.metadata.outputs.version     }}
+      minor_version: ${{ steps.metadata.outputs.minor       }}
+      major_version: ${{ steps.metadata.outputs.major       }}
+      folder:        ${{ steps.metadata.outputs.folder      }}
+      deb_version:   ${{ steps.metadata.outputs.deb_version }}
+      tag:           ${{ steps.metadata.outputs.tag         }}
+
+    steps:
+    - uses: actions/checkout@v3
+
+    - id: metadata
+      run: |
+        name=$(cargo metadata --no-deps -q --format-version=1 | grep -Eo '"name":".+","version":"' | sed -E 's/","version":"//' | sed -E 's/"name":"//')
+        version=$(cargo metadata --no-deps -q --format-version=1 | grep -Eo '"version":"[0-9]+\.[0-9]+\.[0-9]+"' | grep -Eo '[0-9]+\.[0-9]+\.[0-9]+')
+        major=$(echo $version | sed 's/\.[0-9]*$//')
+        minor=$(echo $version | sed 's/^[0-9]*\.[0-9]*\.//')
+        deb_version=${major}-${minor}
+        folder=${name}_${deb_version}
+
+        echo name=$name                  >> $GITHUB_OUTPUT
+        echo version=$version            >> $GITHUB_OUTPUT
+        echo minor=$minor                >> $GITHUB_OUTPUT
+        echo major=$major                >> $GITHUB_OUTPUT
+        echo deb_version=$deb_version    >> $GITHUB_OUTPUT
+        echo folder=$folder              >> $GITHUB_OUTPUT
+        echo "tag=${GITHUB_REF#refs/*/}" >> $GITHUB_OUTPUT
+
+    - name: Validate changelog
+      env:
+        tag:     ${{ steps.metadata.outputs.tag }}
+      run: cat CHANGELOG | grep -o "^# ${{ env.tag }}"
+
+    - name: Validate project version
+      env:
+        tag:     ${{ steps.metadata.outputs.tag }}
+        version: ${{ steps.metadata.outputs.version }}
+      run: echo ${{ env.tag }} | grep -o "v${{ env.version }}"
+
+  pack-win:
+    runs-on: windows-latest
+    needs: metadata
+    env:
+      name:    ${{ needs.metadata.outputs.name    }}
+      version: ${{ needs.metadata.outputs.version }}
+
+    steps:
+    - uses: actions/checkout@v3
+    - name: build
+      run: cargo rustc --release --target x86_64-pc-windows-gnu -- -Clink-args="-Wl,--subsystem,windows"
+
+    - name: copy files
+      run: |
+        mkdir -p ./target/pack/${{ env.name }}
+        cp ./target/x86_64-pc-windows-gnu/release/${{ env.name }}.exe ./target/pack/${{ env.name }}/
+        cp ./data ./target/pack/${{ env.name }}/
+
+    - name: project metadata
+      shell: Bash
+      run: |
+        cp COPYRIGHT ./target/pack/${{ env.name }}/COPYRIGHT.txt
+        if [ -f changelog ]; then
+          cp changelog ./target/pack/${{ env.name }}/changelog.md
+        else
+          echo No changelog found, skipping inclusion
+        fi
+
+    - name: package
+      run: 7z a -tzip ./target/pack/${{ env.name }}-v${{ env.version }}.zip ./target/pack/${{ env.name }}/*
+
+    - name: upload package
+      uses: actions/upload-artifact@v3
+      with:
+        name: win-package
+        path: ./target/pack/${{ env.name }}-v${{ env.version }}.zip
+
+  pack-tar:
+    runs-on: ubuntu-latest
+    needs: metadata
+    env:
+      name:    ${{ needs.metadata.outputs.name    }}
+      version: ${{ needs.metadata.outputs.version }}
+
+    steps:
+    - uses: actions/checkout@v3
+    - name: build
+      run: cargo build --release --target x86_64-unknown-linux-gnu
+
+    - name: copy build for packing
+      run: |
+        mkdir -p ./target/pack/${{ env.name }}
+        cp ./target/x86_64-unknown-linux-gnu/release/${{ env.name }} ./target/pack/${{ env.name }}/
+        cp ./data ./target/pack/${{ env.name }}/
+
+    - name: create linux helper objects
+      run: |
+        cat ./.github/assets/install.sh  | sed -E "s/PROGRAM/${{ env.name }}/g" > ./target/pack/${{ env.name }}/install.sh
+        cat ./.github/assets/remove.sh   | sed -E "s/PROGRAM/${{ env.name }}/g" > ./target/pack/${{ env.name }}/remove.sh
+        cat ./.github/assets/dot.desktop | sed -E "s/PROGRAM/${{ env.name }}/g" > ./target/pack/${{ env.name }}/${{ env.name }}.desktop
+        chmod 755 ./target/pack/${{ env.name }}/install.sh
+        chmod 755 ./target/pack/${{ env.name }}/remove.sh
+
+    - name: project metadata
+      run: |
+        cp COPYRIGHT ./target/pack/${{ env.name }}/
+        if [ -f changelog ]; then
+          cp changelog ./target/pack/${{ env.name }}/
+        else
+          echo No changelog found, skipping inclusion
+        fi
+
+    - name: Package
+      run: |
+        cd ./target/pack
+        tar -caf ${{ env.name }}-v${{ env.version }}.tar.gz ${{ env.name }}
+
+    - name: upload result
+      uses: actions/upload-artifact@v3
+      with:
+        name: tar-package
+        path: ./target/pack/${{ env.name }}-v${{ env.version }}.tar.gz
+
+  pack-deb:
+    runs-on: ubuntu-latest
+    needs: metadata
+    env:
+      name:    ${{ needs.metadata.outputs.name }}
+      folder:  ${{ needs.metadata.outputs.folder }}
+      version: ${{ needs.metadata.outputs.deb_version }}
+
+    steps:
+    - uses: actions/checkout@v3
+    - name: build
+      run: cargo build --release --target x86_64-unknown-linux-gnu
+
+    - name: copy build to pack
+      run: |
+        mkdir -p ./target/pack/${{ env.folder }}/usr/bin
+        cp ./target/x86_64-unknown-linux-gnu/release/${{ env.name }} ./target/pack/${{ env.folder }}/usr/bin
+
+        mkdir -p     ./target/pack/${{ env.folder }}/usr/share
+        cp -r ./data ./target/pack/${{ env.folder }}/usr/share/${{ env.name }}
+
+    - name: copy linux helper objects
+      run: |
+        mkdir -p ./target/pack/${{ env.folder }}/usr/share/applications
+        mkdir -p ./target/pack/${{ env.folder }}/DEBIAN
+
+        cat ./.github/assets/dot.desktop | sed -E "s/PROGRAM/${{ env.name }}/g"        > ./target/pack/${{ env.folder }}/usr/share/applications/${{ env.name }}.desktop
+        cat ./.github/assets/control     | sed -E "s/DEB_VERSION/${{ env.version }}/g" > ./target/pack/${{ env.folder }}/DEBIAN/control
+
+    - name: project metadata
+      run: |
+        cp COPYRIGHT ./target/pack/${{ env.folder }}/DEBIAN/copyright
+        if [ -f changelog ]; then
+          cp changelog ./target/pack/${{ env.folder }}/DEBIAN/changelog
+        else
+          echo No changelog found, skipping inclusion
+        fi
+
+    - name: package
+      run: |
+        cd ./target/pack
+        dpkg-deb --build ${{ env.folder }}
+
+    - name: upload result
+      uses: actions/upload-artifact@v3
+      with:
+        name: deb-package
+        path: ./target/pack/${{ env.folder }}.deb
+
+  combine-packs:
+    runs-on: ubuntu-latest
+    needs: [pack-tar, pack-win, pack-deb]
+    permissions:
+      contents: write
+
+    steps:
+    - uses: actions/checkout@v3
+
+    - name: get individual packages
+      uses: actions/download-artifact@v3
+      with:
+        path: ./target/pack/
+
+    - name: generate changelog
+      run: |
+        # this monstrosity extracts the most recent block of changes
+        cat CHANGELOG | grep -o -n "^# " | head -n 2 | sed -e "s/:#//" | tr '\n' ' ' | sed 's/\([0-9]*\) *\([0-9]*\)/cat CHANGELOG | awk "NR > \1 \&\& NR < \2"/' | bash > change.log
+
+    - name: move packs
+      run: |
+        mkdir -p ./release
+        mv ./target/pack/tar-package/* ./release/
+        mv ./target/pack/deb-package/* ./release/
+        mv ./target/pack/win-package/* ./release/
+
+    - name: release
+      uses: softprops/action-gh-release@v1
+      with:
+        files: ./release/*
+        body_path: change.log
+        generate_release_notes: true
+        draft: true

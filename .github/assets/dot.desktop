@@ -1,0 +1,7 @@
+[Desktop Entry]
+Type=Application
+Name=Token Maker
+Comment=Tool for making tabletop assets
+Exec=PROGRAM
+Terminal=false
+Categories=Graphics
