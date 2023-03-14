@@ -121,7 +121,7 @@ pack-deb:
     echo Architecture: amd64 >> control
     echo "Maintainer: Purrie Brightstar <purriestarshine@gmail.com>" >> control
     echo "Homepage: https://github.com/purrie/$NAME" >> control
-    echo Description: A side scrolling game >> control
+    echo Description: Program for making tabletop assets >> control
 
     cp ../../../../COPYRIGHT ./copyright
     if [ -f ../../changelog ]; then
