@@ -382,25 +382,30 @@ impl Application for TokenMaker {
 
     fn view(&self) -> iced::Element<'_, Self::Message, iced::Renderer<Self::Theme>> {
         let top_bar = self.top_bar();
-        let ui = match self.operation {
-            Mode::FileBrowser(_) => self.data.file.view().map(|x| Message::FileBrowser(x)),
-            Mode::CreateWorkspace => self.workspace_add_view(),
-            Mode::Workspace => self.workspace_view(),
-            Mode::Settings => self.settings_view(),
-            Mode::FrameMaker => self
-                .frame_maker
-                .view(&self.data)
-                .map(|x| Message::FrameMakerMessage(x)),
-        };
+
         let status = self
             .data
             .status
             .view()
             .map(|_| Message::Error("Status line shouldn't cast messages for now".to_string()));
 
-        let ui = col![top_bar, ui, status]
-            .height(Length::Fill)
-            .width(Length::Fill);
+        let ui = match self.operation {
+            Mode::FileBrowser(_) => col![
+                self.data.file.view().map(|x| Message::FileBrowser(x)),
+                status
+            ],
+            Mode::CreateWorkspace => col![top_bar, self.workspace_add_view(), status],
+            Mode::Workspace => col![top_bar, self.workspace_view(), status],
+            Mode::Settings => col![top_bar, self.settings_view(), status],
+            Mode::FrameMaker => col![
+                top_bar,
+                self.frame_maker
+                    .view(&self.data)
+                    .map(|x| Message::FrameMakerMessage(x)),
+                status
+            ],
+        };
+
         container(ui)
             .height(Length::Fill)
             .width(Length::Fill)

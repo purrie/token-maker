@@ -1,9 +1,11 @@
 use std::path::PathBuf;
 
 use iced::widget::{
-    button, column as col, container, horizontal_space, row, scrollable, text, Column, Container,
+    button, column as col, container, horizontal_space, row, scrollable, text,
 };
-use iced::{Element, Length, Renderer};
+use iced::{Alignment, Element, Length, Renderer};
+
+use crate::style::Style;
 
 pub struct Browser {
     path: PathBuf,
@@ -137,43 +139,66 @@ impl Browser {
             },
         }
     }
-    pub fn view_raw(&self) -> Container<BrowserOperation, Renderer> {
+    pub fn view(&self) -> Element<BrowserOperation, Renderer> {
         // calculating file list widgets
-        let mut file_list = Column::new();
-        for x in self.dir.iter() {
-            if let Some(name) = x.file_name().and_then(|x| x.to_str()) {
-                let mut butt = button(
-                    row![
-                        text(name).width(Length::FillPortion(5)),
-                        if x.is_file() {
-                            text("File")
-                        } else {
-                            text("Directory")
-                        }
-                        .width(Length::FillPortion(1)),
-                    ]
-                    .width(Length::Fill),
-                );
+        let file_list = self
+            .dir
+            .iter()
+            .filter_map(|x| {
+                // Getting the name of the file
+                if let Some(name) = x.file_name().and_then(|x| x.to_str()) {
+                    Some((x, name))
+                } else {
+                    None
+                }
+            })
+            .map(|(x, name)| {
+                // turning it in to a row
+                let r = row![
+                    text(name).width(Length::FillPortion(5)),
+                    if x.is_file() {
+                        text("File")
+                    } else {
+                        text("Directory")
+                    }
+                    .width(Length::FillPortion(1)),
+                ]
+                .width(Length::Fill);
+                (x, r)
+            })
+            .map(|(x, row)| {
+                // each row is a button
+                let b = button(row);
+                (x, b)
+            })
+            .map(|(x, button)| {
+                // depending on the type of the file, the button does different things
                 if x.is_dir() {
-                    butt = butt.on_press(BrowserOperation::MoveInto(x.clone()));
+                    button.on_press(BrowserOperation::MoveInto(x.clone()))
                 } else {
                     match &self.selected {
-                        Some(sel) if sel == x => {
-                            butt = butt.on_press(BrowserOperation::Accept);
-                        }
-                        _ => {
-                            butt = butt.on_press(BrowserOperation::Select(Some(x.clone())));
-                        }
+                        Some(sel) if sel == x => button.on_press(BrowserOperation::Accept),
+                        _ => button.on_press(BrowserOperation::Select(Some(x.clone()))),
                     }
                 }
-                file_list = file_list.push(butt);
-            }
-        }
+            })
+            // fold it all up into a column
+            .fold(col![].spacing(2), |col, butt| col.push(butt));
+
+        let bottom = scrollable(file_list);
+        let bottom = container(bottom)
+            .style(Style::Margins)
+            .padding(4)
+            .width(Length::Fill)
+            .height(Length::Fill);
+
         // calculating the toolbar widgets
-        let mut move_up = button("..");
-        if self.path.parent().is_some() {
-            move_up = move_up.on_press(BrowserOperation::MoveUp);
-        }
+        let move_up = if self.path.parent().is_some() {
+            button("..").on_press(BrowserOperation::MoveUp)
+        } else {
+            button("..")
+        };
+
         let accept = match (&self.target, &self.selected) {
             (Target::File, Some(p)) if p.is_file() => {
                 button("Accept").on_press(BrowserOperation::Accept)
@@ -185,26 +210,24 @@ impl Browser {
             _ => button("Accept"),
         };
 
-        let ui = col![
-            row![
-                button("Cancel").on_press(BrowserOperation::Cancel),
-                move_up,
-                text(format!("Directory: {}", self.path.to_string_lossy())),
-                horizontal_space(Length::Fill),
-                accept
-            ]
-            .spacing(10)
-            .height(Length::Shrink)
-            .width(Length::Fill),
-            scrollable(file_list).height(Length::Fill),
+        let top = row![
+            button("Cancel").on_press(BrowserOperation::Cancel),
+            move_up,
+            text(format!("Directory: {}", self.path.to_string_lossy())),
+            horizontal_space(Length::Fill),
+            accept
         ]
-        .padding(2)
-        .spacing(2);
+        .align_items(Alignment::Center)
+        .spacing(10);
 
-        container(ui)
-    }
 
-    pub fn view(&self) -> Element<BrowserOperation, Renderer> {
-        self.view_raw().into()
+        let top = container(top)
+            .style(Style::Header)
+            .padding(4)
+            .width(Length::Fill)
+            .height(Length::Shrink);
+
+        col![top, bottom].into()
+
     }
 }
