@@ -1,5 +1,5 @@
 use iced::{
-    widget::{column as col, container, row, text, text_input, vertical_space},
+    widget::{column as col, container, row, text, text_input},
     Alignment, Command, Element, Length, Renderer, Vector,
 };
 use iced_native::image::Handle;
@@ -11,6 +11,7 @@ use crate::{
         ProgramData,
     },
     image::{image_to_handle, GrayscaleImage, RgbaImage},
+    style::Style,
     widgets::PixelSampler,
 };
 
@@ -101,39 +102,45 @@ impl FrameMaker {
 
     /// Constructs UI for the editor
     pub fn view(&self, _pdata: &ProgramData) -> Element<FrameMakerMessage, Renderer> {
-        col![
-            vertical_space(5),
-            row![
-                text("Name: "),
-                text_input(
-                    "New Frame Name",
-                    &self.name,
-                    |x| FrameMakerMessage::SetName(x)
-                ),
-            ]
-            .spacing(5)
-            .padding(5)
-            .align_items(Alignment::Center)
-            .height(Length::Shrink),
-            row![
-                text("Category: "),
-                text_input("Category for new frame", &self.category, |x| {
-                    FrameMakerMessage::SetCategory(x)
-                }),
-            ]
-            .spacing(5)
-            .padding(5)
-            .align_items(Alignment::Center)
-            .height(Length::Shrink),
-            container(PixelSampler::new(self.preview.clone(), |x| {
-                FrameMakerMessage::SelectedPixel(x)
-            }))
-            .center_x()
-            .center_y()
-            .width(Length::Fill)
-            .height(Length::Fill),
+        let name = row![
+            text("Name: "),
+            text_input(
+                "New Frame Name",
+                &self.name,
+                |x| FrameMakerMessage::SetName(x)
+            ),
         ]
-        .into()
+        .spacing(5)
+        .padding(5)
+        .align_items(Alignment::Center)
+        .height(Length::Shrink);
+
+        let category = row![
+            text("Category: "),
+            text_input("Category for new frame", &self.category, |x| {
+                FrameMakerMessage::SetCategory(x)
+            }),
+        ]
+        .spacing(5)
+        .padding(5)
+        .align_items(Alignment::Center)
+        .height(Length::Shrink);
+
+        let name = container(name).style(Style::Frame);
+        let category = container(category).style(Style::Frame);
+
+        let preview = container(PixelSampler::new(self.preview.clone(), |x| {
+            FrameMakerMessage::SelectedPixel(x)
+        }))
+        .style(Style::Margins)
+        .center_x()
+        .center_y()
+        .width(Length::Fill)
+        .height(Length::Fill);
+
+        let ui = col![name, category, preview,].spacing(2).padding(2);
+
+        container(ui).style(Style::Margins).into()
     }
 
     /// Handles messages produced by the editor

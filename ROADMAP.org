@@ -5,8 +5,9 @@ This document contains ideas and goals for the project as well as description of
 * TODO UI/UX
 - [X] Use styles to make the program look pretty
 - [X] Style the color picker widget
-- [ ] Style Frame Maker
+- [X] Style Frame Maker
 - [X] Style Settings Page
+- [ ] Style file browser
 - [ ] Frames need to have improved frame choice UI and implement categories
 - [ ] Make offset be displayed at 0 instead of center of the image
 - [ ] Export button should become red if any workspace points to a file that already exist
