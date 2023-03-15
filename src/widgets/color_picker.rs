@@ -1,4 +1,7 @@
-use iced::{event::Status, Color, Element, Length, Point, Rectangle, Size, Vector};
+use iced::{
+    event::Status, widget::canvas::Path, Color, Element, Length, Point, Rectangle, Size, Theme,
+    Vector,
+};
 use iced_graphics::{Backend, Renderer};
 use iced_native::{
     layout::{Limits, Node},
@@ -10,17 +13,24 @@ use iced_native::{
 
 use crate::image::{color_to_hsv, hsv_to_color};
 
-pub struct ColorPicker<'c, M> {
+pub struct ColorPicker<'c, M, R>
+where
+    R: iced_native::Renderer,
+    R::Theme: StyleSheet,
+    <R::Theme as StyleSheet>::Style: Default,
+{
     color: Color,
     on_submit: Box<dyn 'c + Fn(Color) -> M>,
     width: Length,
     height: Length,
+    style: <R::Theme as StyleSheet>::Style,
 }
 
-impl<'c, M, B, T> Widget<M, Renderer<B, T>> for ColorPicker<'c, M>
+impl<'c, M, B, T> Widget<M, Renderer<B, T>> for ColorPicker<'c, M, Renderer<B, T>>
 where
     M: Clone,
     B: Backend + iced_graphics::backend::Text,
+    T: StyleSheet,
 {
     fn width(&self) -> iced::Length {
         self.width
@@ -127,20 +137,26 @@ where
         };
 
         if local_state.open {
-            Some(Overlay::new(local_state, pos, &self.on_submit).into())
+            Some(Overlay::new(local_state, pos, &self.on_submit, &self.style).into())
         } else {
             None
         }
     }
 }
 
-impl<'a, M> ColorPicker<'a, M> {
+impl<'a, M, R> ColorPicker<'a, M, R>
+where
+    R: iced_native::Renderer,
+    R::Theme: StyleSheet,
+    <R::Theme as StyleSheet>::Style: Default,
+{
     pub fn new<F: 'a + Fn(Color) -> M>(color: Color, on_submit: F) -> Self {
         Self {
             color,
             on_submit: Box::new(on_submit),
             height: Length::Shrink,
             width: Length::Shrink,
+            style: <R::Theme as StyleSheet>::Style::default(),
         }
     }
 
@@ -155,16 +171,6 @@ impl<'a, M> ColorPicker<'a, M> {
     }
 }
 
-impl<'a, M, B, T> From<ColorPicker<'a, M>> for Element<'a, M, Renderer<B, T>>
-where
-    M: Clone + 'a,
-    B: Backend + iced_graphics::backend::Text,
-{
-    fn from(value: ColorPicker<'a, M>) -> Self {
-        Self::new(value)
-    }
-}
-
 #[derive(Default)]
 struct State {
     open: bool,
@@ -175,18 +181,35 @@ struct State {
     hue: f32,
     saturation: f32,
     value: f32,
+
+    mouseover_hue: bool,
+    mouseover_color: bool,
 }
 
-struct Overlay<'a, M> {
+struct Overlay<'a, M, R>
+where
+    R: iced_native::Renderer,
+    R::Theme: StyleSheet,
+{
     state: &'a mut State,
     area: Rectangle,
     margin: f32,
     spacing: f32,
     on_submit: &'a Box<dyn 'a + Fn(Color) -> M>,
+    style: &'a <R::Theme as StyleSheet>::Style,
 }
 
-impl<'a, M> Overlay<'a, M> {
-    fn new(state: &'a mut State, pos: Point, on_submit: &'a Box<dyn 'a + Fn(Color) -> M>) -> Self {
+impl<'a, M, B, T> Overlay<'a, M, Renderer<B, T>>
+where
+    B: Backend,
+    T: StyleSheet,
+{
+    fn new(
+        state: &'a mut State,
+        pos: Point,
+        on_submit: &'a Box<dyn 'a + Fn(Color) -> M>,
+        style: &'a T::Style,
+    ) -> Self {
         Self {
             state,
             area: Rectangle {
@@ -198,14 +221,79 @@ impl<'a, M> Overlay<'a, M> {
             margin: 10.0,
             spacing: 10.0,
             on_submit,
+            style,
+        }
+    }
+
+    fn hue_widget_rect(&self) -> Rectangle {
+        Rectangle {
+            x: self.area.x + self.margin,
+            y: self.area.y + self.margin,
+            width: self.area.width * 0.5 - self.spacing * 0.5 - self.margin,
+            height: self.area.height * 0.1,
+        }
+    }
+
+    fn color_widget_rect(&self) -> Rectangle {
+        Rectangle {
+            x: self.area.x + self.margin,
+            y: self.area.y + self.area.height * 0.1 + self.spacing + self.margin,
+            width: self.area.width * 0.5 - self.spacing * 0.5 - self.margin,
+            height: self.area.height - self.margin * 2.0 - self.spacing - self.area.height * 0.1,
+        }
+    }
+
+    fn r_widget_rect(&self) -> Rectangle {
+        Rectangle {
+            x: self.area.x + self.area.width * 0.5 + self.spacing * 0.5,
+            y: self.area.y + self.margin,
+            width: self.area.width * 0.5 - self.margin - self.spacing * 0.5,
+            height: self.area.height * 0.1,
+        }
+    }
+
+    fn g_widget_rect(&self) -> Rectangle {
+        Rectangle {
+            x: self.area.x + self.area.width * 0.5 + self.spacing * 0.5,
+            y: self.area.y + self.margin + self.area.height * 0.1 + self.spacing,
+            width: self.area.width * 0.5 - self.margin - self.spacing * 0.5,
+            height: self.area.height * 0.1,
+        }
+    }
+
+    fn b_widget_rect(&self) -> Rectangle {
+        Rectangle {
+            x: self.area.x + self.area.width * 0.5 + self.spacing * 0.5,
+            y: self.area.y + self.margin + self.area.height * 0.2 + self.spacing * 2.0,
+            width: self.area.width * 0.5 - self.margin - self.spacing * 0.5,
+            height: self.area.height * 0.1,
+        }
+    }
+
+    fn preview_rect(&self) -> Rectangle {
+        Rectangle {
+            x: self.area.x + self.area.width * 0.95 - self.margin,
+            y: self.area.y + self.margin + self.area.height * 0.3 + self.spacing * 3.0,
+            width: self.area.width * 0.05,
+            height: self.area.height * 0.1,
+        }
+    }
+
+    fn accept_rect(&self) -> Rectangle {
+        Rectangle {
+            x: self.area.x + self.area.width * 0.9 - self.margin,
+            y: self.area.y + self.area.height * 0.8 - self.margin,
+            width: self.area.width * 0.1,
+            height: self.area.height * 0.2,
         }
     }
 }
 
-impl<'a, M, B, T> iced_native::Overlay<M, Renderer<B, T>> for Overlay<'a, M>
+impl<'a, M, B, T> iced_native::Overlay<M, Renderer<B, T>> for Overlay<'a, M, Renderer<B, T>>
 where
     M: Clone,
     B: Backend + iced_graphics::backend::Text,
+    T: StyleSheet,
 {
     fn layout(&self, _renderer: &Renderer<B, T>, _bounds: Size, _position: iced::Point) -> Node {
         let mut n = Node::new(self.area.size());
@@ -216,34 +304,43 @@ where
     fn draw(
         &self,
         renderer: &mut Renderer<B, T>,
-        _theme: &<Renderer<B, T> as iced_native::Renderer>::Theme,
+        theme: &<Renderer<B, T> as iced_native::Renderer>::Theme,
         _style: &iced_native::renderer::Style,
         layout: iced_native::Layout<'_>,
         cursor_position: iced::Point,
     ) {
         let bounds = layout.bounds();
 
-        let background_color = Color::WHITE;
+        let style = theme.style(self.style);
 
         // Background
         renderer.fill_quad(
             Quad {
-                border_color: Color::BLACK,
-                border_radius: 2.0.into(),
-                border_width: 2.0,
+                border_color: style.border_color,
+                border_radius: style.border_radius.into(),
+                border_width: style.border_width,
                 bounds,
             },
-            background_color,
+            style.background,
         );
 
         // Hue widget, used to determine the hue of the color to be picked
         let hue_area = self.hue_widget_rect();
+        let mouse_over_hue = self.state.mouseover_hue;
         let hue = self.state.hue_widget.draw(hue_area.size(), |f| {
             let cols = f.width() as u16;
             let h = f.height();
+            let line = (self.state.hue * f.width()) as u16;
 
             for i in 0..cols {
                 let hue = i as f32 / cols as f32;
+
+                let col = if i == line {
+                    Color::BLACK
+                } else {
+                    hsv_to_color(hue, 1.0, 1.0)
+                };
+
                 f.fill_rectangle(
                     Point {
                         x: i as f32,
@@ -253,9 +350,54 @@ where
                         width: 1.0,
                         height: h,
                     },
-                    hsv_to_color(hue, 1.0, 1.0),
+                    col,
                 );
             }
+            let (size, color) = if mouse_over_hue {
+                (style.hover_border_width, style.hover_border_color)
+            } else {
+                (style.border_width, style.border_color)
+            };
+
+            let top = Path::rectangle(
+                Point { x: 0.0, y: 0.0 },
+                Size {
+                    width: f.width(),
+                    height: size,
+                },
+            );
+            let bottom = Path::rectangle(
+                Point {
+                    x: 0.0,
+                    y: f.height() - size - 1.0,
+                },
+                Size {
+                    width: f.width(),
+                    height: size,
+                },
+            );
+            let left = Path::rectangle(
+                Point { x: 0.0, y: 0.0 },
+                Size {
+                    width: size,
+                    height: f.height(),
+                },
+            );
+            let right = Path::rectangle(
+                Point {
+                    x: f.width() - size - 1.0,
+                    y: 0.0,
+                },
+                Size {
+                    width: size,
+                    height: f.height(),
+                },
+            );
+
+            f.fill(&top, color);
+            f.fill(&bottom, color);
+            f.fill(&left, color);
+            f.fill(&right, color);
         });
 
         renderer.with_translation(
@@ -270,15 +412,23 @@ where
 
         // Color widget, allows choosing the saturation and value of the color
         let color_area = self.color_widget_rect();
+        let mouse_over_color = self.state.mouseover_color;
         let color = self.state.color_widget.draw(color_area.size(), |f| {
             let cols = f.width() as u16;
             let rows = f.height() as u16;
+
+            let line_h = ((1.0 - self.state.saturation) * f.height()) as u16;
+            let line_w = (self.state.value * f.width()) as u16;
 
             for x in 0..cols {
                 for y in 0..rows {
                     let s = 1.0 - y as f32 / rows as f32;
                     let v = x as f32 / cols as f32;
-                    let col = hsv_to_color(self.state.hue, s, v);
+                    let col = if x == line_w || y == line_h {
+                        Color::BLACK
+                    } else {
+                        hsv_to_color(self.state.hue, s, v)
+                    };
 
                     f.fill_rectangle(
                         Point {
@@ -290,6 +440,51 @@ where
                     );
                 }
             }
+            let (size, color) = if mouse_over_color {
+                (style.hover_border_width, style.hover_border_color)
+            } else {
+                (style.border_width, style.border_color)
+            };
+
+            let top = Path::rectangle(
+                Point { x: 0.0, y: 0.0 },
+                Size {
+                    width: f.width(),
+                    height: size,
+                },
+            );
+            let bottom = Path::rectangle(
+                Point {
+                    x: 0.0,
+                    y: f.height() - size - 1.0,
+                },
+                Size {
+                    width: f.width(),
+                    height: size,
+                },
+            );
+            let left = Path::rectangle(
+                Point { x: 0.0, y: 0.0 },
+                Size {
+                    width: size,
+                    height: f.height(),
+                },
+            );
+            let right = Path::rectangle(
+                Point {
+                    x: f.width() - size - 1.0,
+                    y: 0.0,
+                },
+                Size {
+                    width: size,
+                    height: f.height(),
+                },
+            );
+
+            f.fill(&top, color);
+            f.fill(&bottom, color);
+            f.fill(&left, color);
+            f.fill(&right, color);
         });
 
         renderer.with_translation(
@@ -303,80 +498,78 @@ where
         );
 
         // Drawing sliders for choosing specific colors
-        let mut r_area = self.r_widget_rect();
-        let mut g_area = self.g_widget_rect();
-        let mut b_area = self.b_widget_rect();
+        let r_area = self.r_widget_rect();
+        let g_area = self.g_widget_rect();
+        let b_area = self.b_widget_rect();
         let p_area = self.preview_rect();
         let col = hsv_to_color(self.state.hue, self.state.saturation, self.state.value);
 
-        // Drawing borders
-        renderer.fill_quad(
+        let mut r_border = if r_area.contains(cursor_position) {
             Quad {
-                border_color: Color::BLACK,
-                border_radius: 0.0.into(),
-                border_width: 1.0,
+                border_color: style.hover_border_color,
+                border_radius: style.hover_border_radius.into(),
+                border_width: style.hover_border_width,
                 bounds: r_area,
-            },
-            background_color,
-        );
-        renderer.fill_quad(
+            }
+        } else {
             Quad {
-                border_color: Color::BLACK,
-                border_radius: 0.0.into(),
-                border_width: 1.0,
+                border_color: style.border_color,
+                border_radius: style.border_radius.into(),
+                border_width: style.border_width,
+                bounds: r_area,
+            }
+        };
+        let mut g_border = if g_area.contains(cursor_position) {
+            Quad {
+                border_color: style.hover_border_color,
+                border_radius: style.hover_border_radius.into(),
+                border_width: style.hover_border_width,
                 bounds: g_area,
-            },
-            background_color,
-        );
-        renderer.fill_quad(
+            }
+        } else {
             Quad {
-                border_color: Color::BLACK,
-                border_radius: 0.0.into(),
-                border_width: 1.0,
+                border_color: style.border_color,
+                border_radius: style.border_radius.into(),
+                border_width: style.border_width,
+                bounds: g_area,
+            }
+        };
+        let mut b_border = if b_area.contains(cursor_position) {
+            Quad {
+                border_color: style.hover_border_color,
+                border_radius: style.hover_border_radius.into(),
+                border_width: style.hover_border_width,
                 bounds: b_area,
-            },
-            background_color,
-        );
+            }
+        } else {
+            Quad {
+                border_color: style.border_color,
+                border_radius: style.border_radius.into(),
+                border_width: style.border_width,
+                bounds: b_area,
+            }
+        };
 
-        r_area.width *= col.r;
-        g_area.width *= col.g;
-        b_area.width *= col.b;
+        // Drawing borders
+        renderer.fill_quad(r_border, style.background);
+        renderer.fill_quad(g_border, style.background);
+        renderer.fill_quad(b_border, style.background);
+
+        r_border.bounds.width *= col.r;
+        g_border.bounds.width *= col.g;
+        b_border.bounds.width *= col.b;
 
         // Drawing fills for the sliders
-        renderer.fill_quad(
-            Quad {
-                border_color: background_color,
-                border_radius: 0.0.into(),
-                border_width: 0.0,
-                bounds: r_area,
-            },
-            Color::from_rgb(col.r, 0.0, 0.0),
-        );
-        renderer.fill_quad(
-            Quad {
-                border_color: background_color,
-                border_radius: 0.0.into(),
-                border_width: 0.0,
-                bounds: g_area,
-            },
-            Color::from_rgb(0.0, col.g, 0.0),
-        );
-        renderer.fill_quad(
-            Quad {
-                border_color: background_color,
-                border_radius: 0.0.into(),
-                border_width: 0.0,
-                bounds: b_area,
-            },
-            Color::from_rgb(0.0, 0.0, col.b),
-        );
+        renderer.fill_quad(r_border, Color::from_rgb(col.r, 0.0, 0.0));
+        renderer.fill_quad(g_border, Color::from_rgb(0.0, col.g, 0.0));
+        renderer.fill_quad(b_border, Color::from_rgb(0.0, 0.0, col.b));
 
         // preview square
         renderer.fill_quad(
             Quad {
-                border_color: Color::BLACK,
-                border_radius: 0.0.into(),
-                border_width: 1.0,
+                border_color: style.border_color,
+                border_radius: style.border_radius.into(),
+                border_width: style.border_width,
                 bounds: p_area,
             },
             col,
@@ -384,25 +577,27 @@ where
 
         // accept button
         let butt = self.accept_rect();
-        let butt_border = if butt.contains(cursor_position) {
-            2.0
+        let accept_quad = if butt.contains(cursor_position) {
+            Quad {
+                border_color: style.hover_border_color,
+                bounds: butt,
+                border_radius: style.hover_border_radius.into(),
+                border_width: style.hover_border_width,
+            }
         } else {
-            1.0
+            Quad {
+                border_color: style.border_color,
+                bounds: butt,
+                border_radius: style.border_radius.into(),
+                border_width: style.border_width,
+            }
         };
 
-        renderer.fill_quad(
-            Quad {
-                border_color: Color::BLACK,
-                border_radius: butt_border.into(),
-                border_width: butt_border,
-                bounds: butt,
-            },
-            Color::WHITE,
-        );
+        renderer.fill_quad(accept_quad, style.button_color);
 
         renderer.fill_text(Text {
             bounds: butt,
-            color: Color::BLACK,
+            color: style.text_color,
             content: " >",
             size: butt.height,
             font: Default::default(),
@@ -487,84 +682,20 @@ where
                         Status::Ignored
                     }
                 }
+                iced::mouse::Event::CursorMoved { position } => {
+                    if self.hue_widget_rect().contains(position) != self.state.mouseover_hue {
+                        self.state.hue_widget.clear();
+                        self.state.mouseover_hue = !self.state.mouseover_hue;
+                    }
+                    if self.color_widget_rect().contains(position) != self.state.mouseover_color {
+                        self.state.color_widget.clear();
+                        self.state.mouseover_color = !self.state.mouseover_color;
+                    }
+                    Status::Ignored
+                }
                 _ => Status::Ignored,
             },
             _ => Status::Ignored,
-        }
-    }
-}
-
-impl<'a, M, B, T> From<Overlay<'a, M>> for iced_native::overlay::Element<'a, M, Renderer<B, T>>
-where
-    M: Clone,
-    B: Backend + iced_graphics::backend::Text,
-{
-    fn from(value: Overlay<'a, M>) -> Self {
-        Self::new(iced::Point { x: 0.0, y: 0.0 }, Box::new(value))
-    }
-}
-
-impl<'a, M> Overlay<'a, M> {
-    fn hue_widget_rect(&self) -> Rectangle {
-        Rectangle {
-            x: self.area.x + self.margin,
-            y: self.area.y + self.margin,
-            width: self.area.width * 0.5 - self.spacing * 0.5 - self.margin,
-            height: self.area.height * 0.1,
-        }
-    }
-
-    fn color_widget_rect(&self) -> Rectangle {
-        Rectangle {
-            x: self.area.x + self.margin,
-            y: self.area.y + self.area.height * 0.1 + self.spacing + self.margin,
-            width: self.area.width * 0.5 - self.spacing * 0.5 - self.margin,
-            height: self.area.height - self.margin * 2.0 - self.spacing - self.area.height * 0.1,
-        }
-    }
-
-    fn r_widget_rect(&self) -> Rectangle {
-        Rectangle {
-            x: self.area.x + self.area.width * 0.5 + self.spacing * 0.5,
-            y: self.area.y + self.margin,
-            width: self.area.width * 0.5 - self.margin - self.spacing * 0.5,
-            height: self.area.height * 0.1,
-        }
-    }
-
-    fn g_widget_rect(&self) -> Rectangle {
-        Rectangle {
-            x: self.area.x + self.area.width * 0.5 + self.spacing * 0.5,
-            y: self.area.y + self.margin + self.area.height * 0.1 + self.spacing,
-            width: self.area.width * 0.5 - self.margin - self.spacing * 0.5,
-            height: self.area.height * 0.1,
-        }
-    }
-
-    fn b_widget_rect(&self) -> Rectangle {
-        Rectangle {
-            x: self.area.x + self.area.width * 0.5 + self.spacing * 0.5,
-            y: self.area.y + self.margin + self.area.height * 0.2 + self.spacing * 2.0,
-            width: self.area.width * 0.5 - self.margin - self.spacing * 0.5,
-            height: self.area.height * 0.1,
-        }
-    }
-
-    fn preview_rect(&self) -> Rectangle {
-        Rectangle {
-            x: self.area.x + self.area.width * 0.95 - self.margin,
-            y: self.area.y + self.margin + self.area.height * 0.3 + self.spacing * 3.0,
-            width: self.area.width * 0.05,
-            height: self.area.height * 0.1,
-        }
-    }
-
-    fn accept_rect(&self) -> Rectangle {
-        Rectangle {
-            x: self.area.x + self.area.width * 0.9 - self.margin,
-            y: self.area.y + self.area.height * 0.8 - self.margin,
-            width: self.area.width * 0.1,
-            height: self.area.height * 0.2,
         }
     }
 }
@@ -577,5 +708,77 @@ fn rect_local_point_normalized(rect: Rectangle, point: Point) -> Option<Point> {
         })
     } else {
         None
+    }
+}
+
+// TODO make different functions to get different states for normal, hover, and pressed instead of having one massive appearance
+
+/// Dictates the look of the `ColorPicker` widget
+pub struct Appearance {
+    background: Color,
+    text_color: Color,
+    button_color: Color,
+    border_color: Color,
+    hover_border_color: Color,
+    border_width: f32,
+    border_radius: f32,
+    hover_border_width: f32,
+    hover_border_radius: f32,
+}
+
+/// Style generator for `ColorPicker` widget
+pub trait StyleSheet {
+    type Style: Default;
+    fn style(&self, style: &Self::Style) -> Appearance;
+}
+
+#[derive(Default)]
+pub enum PickerStyle {
+    #[default]
+    Regular,
+    // TODO make more appearance types and a custom one
+}
+
+impl StyleSheet for Theme {
+    type Style = PickerStyle;
+
+    fn style(&self, style: &Self::Style) -> Appearance {
+        let col = self.extended_palette();
+        match style {
+            PickerStyle::Regular => Appearance {
+                background: col.background.base.color,
+                border_color: col.background.weak.color,
+                hover_border_color: col.background.strong.color,
+                button_color: col.primary.base.color,
+                text_color: col.primary.base.text,
+                border_width: 1.0,
+                border_radius: 0.0,
+                hover_border_width: 2.0,
+                hover_border_radius: 0.0,
+            },
+        }
+    }
+}
+
+impl<'a, M, B, T> From<ColorPicker<'a, M, Renderer<B, T>>> for Element<'a, M, Renderer<B, T>>
+where
+    M: Clone + 'a,
+    B: Backend + iced_graphics::backend::Text + 'a,
+    T: StyleSheet + 'a + Default,
+{
+    fn from(value: ColorPicker<'a, M, Renderer<B, T>>) -> Self {
+        Self::new(value)
+    }
+}
+
+impl<'a, M, B, T> From<Overlay<'a, M, Renderer<B, T>>>
+    for iced_native::overlay::Element<'a, M, Renderer<B, T>>
+where
+    M: Clone,
+    B: Backend + iced_graphics::backend::Text + 'a,
+    T: StyleSheet + 'a,
+{
+    fn from(value: Overlay<'a, M, Renderer<B, T>>) -> Self {
+        Self::new(iced::Point { x: 0.0, y: 0.0 }, Box::new(value))
     }
 }

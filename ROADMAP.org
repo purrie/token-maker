@@ -3,12 +3,15 @@
 This document contains ideas and goals for the project as well as description of progress for each. Entries closer to the top can be considered of higher priority for current development.
 
 * TODO UI/UX
-- Use styles to make the program look pretty
-- Export button should become red if any workspace points to a file that already exist
-- There should be a button that allows switching base/source image for all workspaces at once
-- Frames need to have improved frame choice UI and implement categories
-- Make offset be displayed at 0 instead of center of the image
-- Move close button to top bar and have it choose which workspace to close
+- [X] Use styles to make the program look pretty
+- [X] Style the color picker widget
+- [ ] Style Frame Maker
+- [ ] Style Settings Page
+- [ ] Frames need to have improved frame choice UI and implement categories
+- [ ] Make offset be displayed at 0 instead of center of the image
+- [ ] Export button should become red if any workspace points to a file that already exist
+- [ ] There should be a button that allows switching base/source image for all workspaces at once
+- [ ] Move close button to top bar and have it choose which workspace to close
 
 * Bugs
 - Trackpad doesn't release when the button is released off its area.
