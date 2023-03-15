@@ -17,6 +17,7 @@ This document contains ideas and goals for the project as well as description of
 * Bugs
 - Trackpad doesn't release when the button is released off its area.
 - There's no way to reset trackpad zoom level
+- Frame browser seems to be displaying frames twice each
 
 * Modifiers
 Bonus points if modifiers could be applied only to specified part of the image

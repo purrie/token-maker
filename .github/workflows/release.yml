@@ -77,7 +77,7 @@ jobs:
       run: |
         mkdir -p ./target/pack/${{ env.name }}
         cp ./target/x86_64-pc-windows-gnu/release/${{ env.name }}.exe ./target/pack/${{ env.name }}/
-        cp ./data ./target/pack/${{ env.name }}/
+        cp -r ./data ./target/pack/${{ env.name }}/
 
     - name: project metadata
       shell: Bash
