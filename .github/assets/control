@@ -3,6 +3,6 @@ Version: DEB_VERSION
 Section: graphics
 Priority: optional
 Architecture: amd64
-"Maintainer: Purrie Brightstar <purriestarshine@gmail.com>"
-"Homepage: https://github.com/purrie/$NAME"
+Maintainer: Purrie Brightstar <purriestarshine@gmail.com>
+Homepage: https://github.com/purrie/token-maker
 Description: Program for making tabletop assets

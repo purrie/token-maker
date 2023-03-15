@@ -114,7 +114,7 @@ jobs:
       run: |
         mkdir -p ./target/pack/${{ env.name }}
         cp ./target/x86_64-unknown-linux-gnu/release/${{ env.name }} ./target/pack/${{ env.name }}/
-        cp ./data ./target/pack/${{ env.name }}/
+        cp -r ./data ./target/pack/${{ env.name }}/
 
     - name: create linux helper objects
       run: |
