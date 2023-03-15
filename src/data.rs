@@ -341,6 +341,7 @@ pub(crate) use save_frames_path;
 macro_rules! load_data_path {
     ($($paths:expr),*) => {
         [
+            #[cfg(any(windows, debug_assertions))]
             {
                 let mut d = std::env::current_dir().unwrap();
                 d.push(PROJECT_DATA_FOLDER);
@@ -357,8 +358,9 @@ macro_rules! load_data_path {
                 )*
                 d
             },
+            #[cfg(not(windows))]
             {
-                let mut d = dirs::data_dir().unwrap();
+                let mut d = PathBuf::from("/usr/share/");
                 d.push(PROJECT_NAME);
                 $(
                     d.push($paths);
