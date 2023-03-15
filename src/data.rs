@@ -1,14 +1,16 @@
 use std::fs::create_dir_all;
 use std::{fs::read_dir, path::PathBuf, sync::Arc};
 
-use iced::widget::{column as col, horizontal_space, radio, row, text, text_input, vertical_space};
+use iced::widget::{
+    column as col, container, horizontal_space, radio, row, text, text_input, vertical_space,
+};
 use iced::{Alignment, Command, Element, Length, Point, Renderer, Size};
 use iced_native::image::Handle;
 
 use crate::naming_convention::NamingConvention;
 use crate::persistence::{Persistence, PersistentKey, PersistentValue};
 use crate::status_bar::StatusBar;
-use crate::style::Layout;
+use crate::style::{Layout, Style};
 use crate::{
     image::{image_to_handle, GrayscaleImage, ImageFormat, RgbaImage},
     style::Theme,
@@ -105,86 +107,96 @@ impl ProgramData {
     }
     /// Draws UI for customizing program settings
     pub fn view(&self) -> Element<ProgramDataMessage, Renderer> {
-        col![
-            vertical_space(Length::Fill),
-            row![
-                horizontal_space(Length::Fill),
-                text("Theme: "),
-                radio("Light", Theme::Light, Some(self.theme), |x| {
-                    ProgramDataMessage::SetTheme(x)
-                }),
-                radio("Dark", Theme::Dark, Some(self.theme), |x| {
-                    ProgramDataMessage::SetTheme(x)
-                }),
-                horizontal_space(Length::Fill),
-            ]
-            .spacing(4)
-            .width(Length::Fill)
-            .align_items(Alignment::Center),
-            row![
-                horizontal_space(Length::Fill),
-                text("Workspace Layout: "),
-                radio("Parallel", Layout::Parallel, Some(self.layout), |x| {
-                    ProgramDataMessage::SetLayout(x)
-                }),
-                radio("Tabs", Layout::Stacking(0), Some(self.layout), |x| {
-                    ProgramDataMessage::SetLayout(x)
-                }),
-                horizontal_space(Length::Fill),
-            ],
-            row![
-                horizontal_space(Length::Fill),
-                text("Naming Convention: "),
-                col![
-                    vertical_space(10),
-                    row![
-                        text("Default: ").width(Length::Fill),
-                        text_input(
-                            "Default Name",
-                            self.naming.check(&WorkspaceTemplate::None),
-                            |x| ProgramDataMessage::SetNamingConvention(WorkspaceTemplate::None, x)
-                        )
-                        .width(Length::FillPortion(5)),
-                    ]
-                    .align_items(Alignment::Center),
-                    row![
-                        text("Token: ").width(Length::Fill),
-                        text_input(
-                            "Default Name",
-                            self.naming.check(&WorkspaceTemplate::Token),
-                            |x| ProgramDataMessage::SetNamingConvention(
-                                WorkspaceTemplate::Token,
-                                x
-                            )
-                        )
-                        .width(Length::FillPortion(5)),
-                    ]
-                    .align_items(Alignment::Center),
-                    row![
-                        text("Portrait: ").width(Length::Fill),
-                        text_input(
-                            "Default Name",
-                            self.naming.check(&WorkspaceTemplate::Portrait),
-                            |x| ProgramDataMessage::SetNamingConvention(
-                                WorkspaceTemplate::Portrait,
-                                x
-                            )
-                        )
-                        .width(Length::FillPortion(5)),
-                    ]
-                    .align_items(Alignment::Center)
+        let theme = row![
+            text("Theme: "),
+            radio("Light", Theme::Light, Some(self.theme), |x| {
+                ProgramDataMessage::SetTheme(x)
+            }),
+            radio("Dark", Theme::Dark, Some(self.theme), |x| {
+                ProgramDataMessage::SetTheme(x)
+            }),
+        ]
+        .padding(20)
+        .spacing(5)
+        .width(Length::Fill)
+        .align_items(Alignment::Center);
+
+        let workspace_layout = row![
+            text("Workspace Layout: "),
+            radio("Parallel", Layout::Parallel, Some(self.layout), |x| {
+                ProgramDataMessage::SetLayout(x)
+            }),
+            radio("Tabs", Layout::Stacking(0), Some(self.layout), |x| {
+                ProgramDataMessage::SetLayout(x)
+            }),
+        ]
+        .align_items(Alignment::Center)
+        .padding(20)
+        .spacing(5);
+
+        let naming_convention = row![
+            text("Naming Convention: "),
+            col![
+                vertical_space(10),
+                row![
+                    text("Default: ").width(Length::Fill),
+                    text_input(
+                        "Default Name",
+                        self.naming.check(&WorkspaceTemplate::None),
+                        |x| ProgramDataMessage::SetNamingConvention(WorkspaceTemplate::None, x)
+                    )
+                    .width(Length::FillPortion(5)),
                 ]
-                .width(Length::FillPortion(2)),
-                horizontal_space(Length::Fill)
+                .align_items(Alignment::Center),
+                row![
+                    text("Token: ").width(Length::Fill),
+                    text_input(
+                        "Default Name",
+                        self.naming.check(&WorkspaceTemplate::Token),
+                        |x| ProgramDataMessage::SetNamingConvention(WorkspaceTemplate::Token, x)
+                    )
+                    .width(Length::FillPortion(5)),
+                ]
+                .align_items(Alignment::Center),
+                row![
+                    text("Portrait: ").width(Length::Fill),
+                    text_input(
+                        "Default Name",
+                        self.naming.check(&WorkspaceTemplate::Portrait),
+                        |x| ProgramDataMessage::SetNamingConvention(WorkspaceTemplate::Portrait, x)
+                    )
+                    .width(Length::FillPortion(5)),
+                ]
+                .align_items(Alignment::Center)
             ]
-            .spacing(5),
+            .width(Length::FillPortion(2)),
+        ]
+        .padding(20)
+        .spacing(5);
+
+        let theme = container(theme).style(Style::Frame);
+        let workspace_layout = container(workspace_layout).style(Style::Frame);
+        let naming_convention = container(naming_convention).style(Style::Frame);
+
+        let ui = col![
+            vertical_space(Length::Fill),
+            theme,
+            workspace_layout,
+            naming_convention,
             vertical_space(Length::Fill),
         ]
         .align_items(Alignment::Center)
-        .spacing(4)
-        .width(Length::Fill)
-        .height(Length::Fill)
-        .into()
+        .spacing(5)
+        .width(Length::FillPortion(3))
+        .height(Length::Fill);
+
+        let ui = row![
+            horizontal_space(Length::Fill),
+            ui,
+            horizontal_space(Length::Fill),
+        ];
+
+        container(ui).style(Style::Margins).into()
     }
 
     /// Updates settings according to the message
