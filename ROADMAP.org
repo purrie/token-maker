@@ -13,9 +13,9 @@ This is a list of functionality what I want for the program to consider it ready
 - [ ] Move close button to top bar and have it choose which workspace to close
 - [ ] Color Picker should allow direct value input
 
-** Bug fixes [0/3]
-- [ ] Trackpad doesn't release when the button is released off its area.
-- [ ] There's no way to reset trackpad zoom level
+** Bug fixes [2/3]
+- [X] Trackpad doesn't release when the button is released off its area.
+- [X] There's no way to reset trackpad zoom level
 - [ ] Color Picker gets clipped away on the window edge
 
 ** Modifiers [0/4]

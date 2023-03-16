@@ -1,4 +1,9 @@
-use iced::{event::Status, keyboard::Modifiers, Element, Length, Point, Rectangle, Size};
+use iced::{
+    event::Status,
+    keyboard::Modifiers,
+    mouse::{Button, ScrollDelta},
+    ContentFit, Element, Length, Point, Size, Vector,
+};
 use iced_native::{
     image::Handle,
     layout::{Limits, Node},
@@ -15,65 +20,83 @@ use iced_native::{
 pub struct Trackpad<'a, Message> {
     handle: Handle,
     position: Point,
-    zoom: f32,
-    position_step: f32,
-    zoom_step: f32,
-    on_drag: Option<Box<dyn Fn(Point) -> Message + 'a>>,
-    on_zoom: Option<Box<dyn Fn(f32) -> Message + 'a>>,
-    on_view_zoom: Option<Box<dyn Fn(f32) -> Message + 'a>>,
+    on_drag: Option<Box<dyn Fn(Modifiers, Button, Point, Vector) -> Option<Message> + 'a>>,
+    on_click: Option<Box<dyn Fn(Modifiers, Button, Point) -> Option<Message> + 'a>>,
+    on_scroll: Option<Box<dyn Fn(Modifiers, ScrollDelta) -> Option<Message> + 'a>>,
     width: Length,
     height: Length,
-    view_size: f32,
+    content_fit: ContentFit,
 }
 
 impl<'a, Message> Trackpad<'a, Message> {
-    /// Creates a new `Trackpad` with basic hold-and-drag messages, resulting value is a new position with delta of mouse movement applied
-    pub fn new<F>(handle: Handle, position: Point, on_drag: F) -> Self
-    where
-        F: Fn(Point) -> Message + 'a,
-    {
+    /// Creates a new `Trackpad` with basic hold-and-drag messages,
+    /// resulting value is a new position with delta of mouse movement applied
+    pub fn new(handle: Handle) -> Self {
         Self {
             handle,
-            position,
-            on_drag: Some(Box::new(on_drag)),
-            on_zoom: None,
-            on_view_zoom: None,
+            position: Point::default(),
+            on_drag: None,
+            on_click: None,
+            on_scroll: None,
             width: Length::Fill,
             height: Length::Fill,
-            view_size: 1.0,
-            zoom: 1.0,
-            position_step: 1.0,
-            zoom_step: 1.0,
+            content_fit: ContentFit::ScaleDown,
         }
     }
-    /// Enables scroll wheel message
-    pub fn with_zoom<F>(mut self, zoom: f32, on_change: F) -> Self
-    where
-        F: Fn(f32) -> Message + 'a,
-    {
-        self.on_zoom = Some(Box::new(on_change));
-        self.zoom = zoom;
-        self
-    }
-    /// Determines how much one scroll wheel line affects the zoom, by default the value is 1.0
-    pub fn zoom_step(mut self, step: f32) -> Self {
-        self.zoom_step = step;
-        self
-    }
-    /// Determines how much one move step affects the position change, by default the value is 1.0
-    pub fn position_step(mut self, step: f32) -> Self {
-        self.position_step = step;
-        self
-    }
-    /// Enables view size change message, allowing resizing the image displayed in the `Trackpad`
+
+    /// Enables drag functionality
     ///
-    /// View zoom uses the same step value as regular zoom.
-    pub fn with_view_zoom<F>(mut self, view_zoom: f32, on_change: F) -> Self
+    /// `on_drag` function is provided with current
+    ///     modifier keys, mouse button, resulting position point
+    ///     and delta between original and resulting points
+    pub fn with_drag<F>(mut self, position: Point, on_drag: F) -> Self
     where
-        F: Fn(f32) -> Message + 'a,
+        F: Fn(Modifiers, Button, Point, Vector) -> Option<Message> + 'a,
     {
-        self.view_size = view_zoom;
-        self.on_view_zoom = Some(Box::new(on_change));
+        self.on_drag = Some(Box::new(on_drag));
+        self.position = position;
+        self
+    }
+
+    /// Enables click functionality
+    ///
+    /// `on_click` is provided with
+    ///     currently held modifiers, clicked button and cursor position in local space
+    pub fn with_click<F>(mut self, on_click: F) -> Self
+    where
+        F: Fn(Modifiers, Button, Point) -> Option<Message> + 'a,
+    {
+        self.on_click = Some(Box::new(on_click));
+        self
+    }
+
+    /// Enables scrollwheel functionality
+    ///
+    /// `on_scroll` function is provided with
+    ///     currently held modifiers and scrollwheel delta
+    pub fn with_scroll<F>(mut self, on_scroll: F) -> Self
+    where
+        F: Fn(Modifiers, ScrollDelta) -> Option<Message> + 'a,
+    {
+        self.on_scroll = Some(Box::new(on_scroll));
+        self
+    }
+
+    /// Sets the strategy for scaling the image
+    pub fn with_content_fit(mut self, content_fit: ContentFit) -> Self {
+        self.content_fit = content_fit;
+        self
+    }
+
+    /// Sets the width for the widget
+    pub fn width<L: Into<Length>>(mut self, width: L) -> Self {
+        self.width = width.into();
+        self
+    }
+
+    /// Sets the height for the widget
+    pub fn height<L: Into<Length>>(mut self, height: L) -> Self {
+        self.height = height.into();
         self
     }
 }
@@ -97,8 +120,19 @@ where
     fn state(&self) -> iced_native::widget::tree::State {
         iced_native::widget::tree::State::new(State::default())
     }
-    fn layout(&self, _renderer: &Renderer, limits: &Limits) -> Node {
-        Node::new(limits.max())
+
+    fn layout(&self, renderer: &Renderer, limits: &Limits) -> Node {
+        let image_size = renderer.dimensions(&self.handle);
+        let image_size = Size {
+            width: image_size.width as f32,
+            height: image_size.height as f32,
+        };
+
+        let size = self.content_fit.fit(
+            image_size,
+            limits.width(self.width).height(self.height).max(),
+        );
+        Node::new(size)
     }
 
     fn draw(
@@ -112,30 +146,8 @@ where
         _viewport: &iced::Rectangle,
     ) {
         let image = self.handle.clone();
-        let size = renderer.dimensions(&image);
         let bounds = layout.bounds();
-
-        // Scaling the image to desired size
-        let size = Size {
-            width: size.width as f32 * self.view_size,
-            height: size.height as f32 * self.view_size,
-        };
-
-        // Creating the drawing area, with centering if the size of the image is smaller than the area we have for drawing
-        let area = Rectangle {
-            x: bounds.x + (bounds.width - size.width).max(0.0) / 2.0,
-            y: bounds.y + (bounds.height - size.height).max(0.0) / 2.0,
-            width: size.width,
-            height: size.height,
-        };
-
-        // rendering, with clipping if the image is larger than the area we have for drawing
-        let render = move |r: &mut Renderer| r.draw(image, area);
-        if size.width > bounds.width || size.height > bounds.height {
-            renderer.with_layer(bounds, render);
-        } else {
-            render(renderer);
-        }
+        renderer.draw(image, bounds);
     }
     fn on_event(
         &mut self,
@@ -149,6 +161,7 @@ where
     ) -> Status {
         let local_state = state.state.downcast_mut::<State>();
         let bounds = layout.bounds();
+
         match event {
             iced::Event::Keyboard(key) => match key {
                 iced::keyboard::Event::ModifiersChanged(mods) => {
@@ -157,74 +170,70 @@ where
                 }
                 _ => Status::Ignored,
             },
+
             iced::Event::Mouse(mouse) => match mouse {
-                iced::mouse::Event::CursorMoved { position } => {
-                    if local_state.tracking {
+                iced::mouse::Event::CursorMoved { position } => match &self.on_drag {
+                    Some(on_drag) if local_state.tracking => {
                         let delta = position - local_state.cursor;
-                        let delta = if local_state.mods.shift() {
-                            delta * self.position_step * 0.1
-                        } else {
-                            delta * self.position_step
-                        };
                         let new_point = self.position - delta;
-                        if let Some(f) = &self.on_drag {
-                            let m = f(new_point);
-                            shell.publish(m);
-                        }
+                        let m = (on_drag)(local_state.mods, local_state.button, new_point, delta);
+                        let Some(m) = m else {
+                            return Status::Ignored;
+                        };
+                        shell.publish(m);
                         local_state.cursor = position;
                         Status::Captured
-                    } else {
+                    }
+                    _ => {
                         local_state.cursor = position;
                         Status::Ignored
                     }
-                }
-                iced::mouse::Event::ButtonPressed(_button) => {
+                },
+
+                iced::mouse::Event::ButtonPressed(button) => {
                     if bounds.contains(cursor_position) {
                         local_state.tracking = true;
+                        local_state.button = button;
+
+                        if let Some(on_click) = &self.on_click {
+                            let local_cursor_position = Point {
+                                x: cursor_position.x - bounds.x,
+                                y: cursor_position.y - bounds.y,
+                            };
+                            if let Some(m) =
+                                on_click(local_state.mods, button, local_cursor_position)
+                            {
+                                shell.publish(m);
+                            }
+                        }
                         Status::Captured
                     } else {
                         Status::Ignored
                     }
                 }
+
                 iced::mouse::Event::ButtonReleased(_button) => {
-                    if bounds.contains(cursor_position) {
+                    if local_state.tracking {
                         local_state.tracking = false;
                         Status::Captured
                     } else {
                         Status::Ignored
                     }
                 }
+
                 iced::mouse::Event::WheelScrolled { delta } => {
                     if bounds.contains(cursor_position) == false {
                         return Status::Ignored;
                     }
-                    let delta = match delta {
-                        iced::mouse::ScrollDelta::Lines { y, .. } => y,
-                        iced::mouse::ScrollDelta::Pixels { y, .. } => y,
-                    } * self.zoom_step;
-                    let delta = if local_state.mods.shift() {
-                        delta * 0.1
+                    if let Some(scroll) = &self.on_scroll {
+                        let m = scroll(local_state.mods, delta);
+                        let Some(m) = m else {
+                            return Status::Ignored;
+                        };
+                        shell.publish(m);
+                        Status::Captured
                     } else {
-                        delta
-                    };
-                    if local_state.mods.alt() {
-                        if let Some(z) = &self.on_view_zoom {
-                            let new_zoom = self.view_size + delta;
-                            let m = z(new_zoom);
-                            shell.publish(m);
-                            Status::Captured
-                        } else {
-                            Status::Ignored
-                        }
-                    } else {
-                        if let Some(z) = &self.on_zoom {
-                            let new_zoom = self.zoom - delta;
-                            let m = z(new_zoom);
-                            shell.publish(m);
-                            Status::Captured
-                        } else {
-                            Status::Ignored
-                        }
+                        Status::Ignored
                     }
                 }
                 _ => Status::Ignored,
@@ -243,9 +252,21 @@ where
     }
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Default)]
+#[derive(Debug, Clone, Copy, PartialEq)]
 pub struct State {
     tracking: bool,
     cursor: Point,
     mods: Modifiers,
+    button: Button,
+}
+
+impl Default for State {
+    fn default() -> Self {
+        Self {
+            tracking: Default::default(),
+            cursor: Default::default(),
+            mods: Default::default(),
+            button: Button::Left,
+        }
+    }
 }

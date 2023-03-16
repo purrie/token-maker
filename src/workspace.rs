@@ -7,7 +7,7 @@ use iced::{
         button, column as col, container, horizontal_space, image::Handle, row, scrollable, text,
         text_input,
     },
-    Alignment, Command, Element, Length, Point, Renderer, Size, Subscription,
+    Alignment, Command, ContentFit, Element, Length, Point, Renderer, Size, Subscription,
 };
 
 use iced_native::{image::Data, widget::PickList};
@@ -76,6 +76,8 @@ pub enum WorkspaceMessage {
     Zoom(f32),
     /// Change to size of the widget rendering the image
     View(f32),
+    /// Resets the view zoom level
+    ResetViewZoom,
     /// Request to close the workspace
     Close,
 }
@@ -202,12 +204,16 @@ impl Workspace {
                 self.update_modifiers(pdata)
             }
             WorkspaceMessage::Zoom(x) => {
-                self.data.zoom = x;
+                self.data.zoom -= x;
                 self.data.dirty = true;
                 self.update_modifiers(pdata)
             }
             WorkspaceMessage::View(x) => {
-                self.data.view = x;
+                self.data.view += x;
+                self.update_modifiers(pdata)
+            }
+            WorkspaceMessage::ResetViewZoom => {
+                self.data.view = 1.0;
                 self.update_modifiers(pdata)
             }
             WorkspaceMessage::RenderResult(r) => {
@@ -349,6 +355,7 @@ impl Workspace {
     pub fn view<'a>(&'a self, pdata: &ProgramData) -> Element<'a, WorkspaceMessage, Renderer> {
         let img = self.get_output();
         let selected_mod = self.selected_modifier;
+
         // handles switching between regular image preview and controls, and whatever the modifier needs to render at the time
         let preview = if let Some(wid) = self.modifiers.get(selected_mod).and_then(|x| {
             if x.wants_main_view(pdata, &self.data) {
@@ -362,11 +369,42 @@ impl Workspace {
                     .map(move |x| WorkspaceMessage::ModifierMessage(selected_mod, x)),
             )
         } else {
-            let img = Trackpad::new(img, self.data.offset, |x| WorkspaceMessage::Slide(x))
-                .with_zoom(self.data.zoom, |x| WorkspaceMessage::Zoom(x))
-                .zoom_step(0.1)
-                .with_view_zoom(self.data.view, |x| WorkspaceMessage::View(x))
-                .position_step(2.0);
+            let img = Trackpad::new(img)
+                .with_drag(self.data.offset, |mods, butt, point, delta| match butt {
+                    iced::mouse::Button::Left => {
+                        Some(WorkspaceMessage::Slide(if mods.shift() {
+                            Point {
+                                x: point.x + delta.x * 0.9,
+                                y: point.y + delta.y * 0.9,
+                            }
+                        } else {
+                            point
+                        }))
+                    }
+                    _ => None,
+                })
+                .with_click(|mods, button, _| match button {
+                    iced::mouse::Button::Middle if mods.alt() => {
+                        Some(WorkspaceMessage::ResetViewZoom)
+                    }
+                    _ => None,
+                })
+                .with_scroll(|mods, delta| {
+                    let change = match delta {
+                        iced::mouse::ScrollDelta::Lines { x: _, y } => y,
+                        iced::mouse::ScrollDelta::Pixels { x: _, y } => y,
+                    } * 0.1;
+                    let change = if mods.shift() { change * 0.1 } else { change };
+                    if mods.alt() {
+                        Some(WorkspaceMessage::View(change))
+                    } else {
+                        Some(WorkspaceMessage::Zoom(change))
+                    }
+                })
+                .width(self.data.export_size.width as f32 * self.data.view)
+                .height(self.data.export_size.height as f32 * self.data.view)
+                .with_content_fit(ContentFit::Contain);
+
             container(img)
         }
         .style(Style::Margins)
