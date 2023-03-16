@@ -1,8 +1,10 @@
 use std::sync::Arc;
 
 use iced::{
-    widget::{button, column as col, horizontal_space, row, scrollable, text},
-    Color, Command, Length, Size,
+    widget::{
+        button, column as col, radio, row, scrollable, scrollable::Properties, text, vertical_space,
+    },
+    Alignment, Color, Command, Length, Size,
 };
 
 use image::imageops::resize;
@@ -31,6 +33,8 @@ pub enum FrameMessage {
     FrameSelected(usize),
     /// Cancels the frame browsing
     CancelFrame,
+    /// Updates the filter for the frame
+    SetFilter(String),
 }
 
 /// Frame modifier draws a frame around the image, optionally masking out any part that would stick out
@@ -42,6 +46,7 @@ pub struct Frame {
     dirty: bool,
     select_frame: bool,
     tint: Color,
+    filter: String,
 
     source: Option<Arc<RgbaImage>>,
     source_mask: Option<Arc<GrayscaleImage>>,
@@ -159,6 +164,10 @@ impl Modifier for Frame {
                     Command::none()
                 }
             }
+            FrameMessage::SetFilter(f) => {
+                self.filter = f;
+                Command::none()
+            }
         }
     }
 
@@ -218,7 +227,7 @@ impl Modifier for Frame {
             .align_items(iced::Alignment::Center)
             .padding(2)
             .width(Length::Fill)
-            .height(Length::Fill);
+            .height(Length::Shrink);
 
         // those counters are used for both messaging to know which button was clicked and for layout
         let mut total = 0;
@@ -233,6 +242,12 @@ impl Modifier for Frame {
 
         // this collects frames in rows
         for img in pdata.available_frames.iter() {
+            if self.filter.len() > 0 {
+                if self.filter.as_str() != img.category() {
+                    total += 1;
+                    continue;
+                }
+            }
             if count > 3 {
                 count = 0;
                 images = images.push(row);
@@ -257,13 +272,51 @@ impl Modifier for Frame {
         if count > 0 {
             images = images.push(row);
         }
+
+        let filter = pdata.available_frames.iter().fold(Vec::new(), |mut v, f| {
+            if v.contains(&f.category()) == false {
+                v.push(f.category());
+            }
+            v
+        });
+
+        let filter = filter
+            .iter()
+            .map(|x| {
+                radio(x.as_str(), x.as_str(), Some(self.filter.as_str()), |x| {
+                    FrameMessage::SetFilter(x.to_string())
+                })
+            })
+            .fold(
+                row![
+                    text("Filter: "),
+                    radio("All", "", Some(self.filter.as_str()), |x| {
+                        FrameMessage::SetFilter(x.to_string())
+                    })
+                ]
+                .spacing(4)
+                .padding(2)
+                .align_items(Alignment::Center),
+                |r, w| r.push(w),
+            );
+
+        // adding vertical space just so the scrollbar doesn't cover the radio buttons
+        let filter = col![filter, vertical_space(10)];
+        let filter = scrollable(filter).horizontal_scroll(Properties::default());
+
         col![
             row![
-                button("Cancel").on_press(FrameMessage::CancelFrame),
-                horizontal_space(Length::Fill),
+                col![
+                    button("Cancel").on_press(FrameMessage::CancelFrame),
+                    vertical_space(10)
+                ],
+                filter,
             ]
+            .align_items(Alignment::Center)
+            .spacing(10)
+            .padding(4)
             .height(Length::Shrink),
-            scrollable(images)
+            scrollable(images).height(Length::Fill)
         ]
         .width(Length::Fill)
         .into()

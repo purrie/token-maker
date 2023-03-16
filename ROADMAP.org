@@ -5,8 +5,8 @@ This document contains ideas and goals for the project as well as description of
 * TODO Production
 This is a list of functionality what I want for the program to consider it ready to be used by regular people
 
-** UI/UX [0/6]
-- [ ] Frames need to have improved frame choice UI and implement categories
+** UI/UX [1/6]
+- [X] Frames need to have improved frame choice UI and implement categories
 - [ ] Make offset be displayed at 0 instead of center of the image
 - [ ] Export button should become red if any workspace points to a file that already exist
 - [ ] There should be a button that allows switching base/source image for all workspaces at once

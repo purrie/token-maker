@@ -485,6 +485,11 @@ impl FrameImage {
         self.display.clone()
     }
 
+    /// Gets the category under which the image lays
+    pub fn category(&self) -> &String {
+        &self.category
+    }
+
     /// Clones the pointer to the frame image
     pub fn image(&self) -> Arc<RgbaImage> {
         self.frame.clone()
@@ -618,5 +623,6 @@ pub async fn load_frames() -> std::io::Result<Vec<FrameImage>> {
         }
     }
 
+    res.sort_by(|a, b| a.category.cmp(&b.category).then(a.name.cmp(&b.name)));
     Ok(res)
 }
