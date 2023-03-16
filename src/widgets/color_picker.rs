@@ -225,66 +225,66 @@ where
         }
     }
 
-    fn hue_widget_rect(&self) -> Rectangle {
+    fn hue_widget_rect(&self, area: &Rectangle) -> Rectangle {
         Rectangle {
-            x: self.area.x + self.margin,
-            y: self.area.y + self.margin,
-            width: self.area.width * 0.5 - self.spacing * 0.5 - self.margin,
-            height: self.area.height * 0.1,
+            x: area.x + self.margin,
+            y: area.y + self.margin,
+            width: area.width * 0.5 - self.spacing * 0.5 - self.margin,
+            height: area.height * 0.1,
         }
     }
 
-    fn color_widget_rect(&self) -> Rectangle {
+    fn color_widget_rect(&self, area: &Rectangle) -> Rectangle {
         Rectangle {
-            x: self.area.x + self.margin,
-            y: self.area.y + self.area.height * 0.1 + self.spacing + self.margin,
-            width: self.area.width * 0.5 - self.spacing * 0.5 - self.margin,
-            height: self.area.height - self.margin * 2.0 - self.spacing - self.area.height * 0.1,
+            x: area.x + self.margin,
+            y: area.y + area.height * 0.1 + self.spacing + self.margin,
+            width: area.width * 0.5 - self.spacing * 0.5 - self.margin,
+            height: area.height - self.margin * 2.0 - self.spacing - area.height * 0.1,
         }
     }
 
-    fn r_widget_rect(&self) -> Rectangle {
+    fn r_widget_rect(&self, area: &Rectangle) -> Rectangle {
         Rectangle {
-            x: self.area.x + self.area.width * 0.5 + self.spacing * 0.5,
-            y: self.area.y + self.margin,
-            width: self.area.width * 0.5 - self.margin - self.spacing * 0.5,
-            height: self.area.height * 0.1,
+            x: area.x + area.width * 0.5 + self.spacing * 0.5,
+            y: area.y + self.margin,
+            width: area.width * 0.5 - self.margin - self.spacing * 0.5,
+            height: area.height * 0.1,
         }
     }
 
-    fn g_widget_rect(&self) -> Rectangle {
+    fn g_widget_rect(&self, area: &Rectangle) -> Rectangle {
         Rectangle {
-            x: self.area.x + self.area.width * 0.5 + self.spacing * 0.5,
-            y: self.area.y + self.margin + self.area.height * 0.1 + self.spacing,
-            width: self.area.width * 0.5 - self.margin - self.spacing * 0.5,
-            height: self.area.height * 0.1,
+            x: area.x + area.width * 0.5 + self.spacing * 0.5,
+            y: area.y + self.margin + area.height * 0.1 + self.spacing,
+            width: area.width * 0.5 - self.margin - self.spacing * 0.5,
+            height: area.height * 0.1,
         }
     }
 
-    fn b_widget_rect(&self) -> Rectangle {
+    fn b_widget_rect(&self, area: &Rectangle) -> Rectangle {
         Rectangle {
-            x: self.area.x + self.area.width * 0.5 + self.spacing * 0.5,
-            y: self.area.y + self.margin + self.area.height * 0.2 + self.spacing * 2.0,
-            width: self.area.width * 0.5 - self.margin - self.spacing * 0.5,
-            height: self.area.height * 0.1,
+            x: area.x + area.width * 0.5 + self.spacing * 0.5,
+            y: area.y + self.margin + area.height * 0.2 + self.spacing * 2.0,
+            width: area.width * 0.5 - self.margin - self.spacing * 0.5,
+            height: area.height * 0.1,
         }
     }
 
-    fn preview_rect(&self) -> Rectangle {
+    fn preview_rect(&self, area: &Rectangle) -> Rectangle {
         Rectangle {
-            x: self.area.x + self.area.width * 0.95 - self.margin,
-            y: self.area.y + self.margin + self.area.height * 0.3 + self.spacing * 3.0,
-            width: self.area.width * 0.05,
-            height: self.area.height * 0.1,
+            x: area.x + area.width * 0.95 - self.margin,
+            y: area.y + self.margin + area.height * 0.3 + self.spacing * 3.0,
+            width: area.width * 0.05,
+            height: area.height * 0.1,
         }
     }
 
-    fn accept_rect(&self) -> Rectangle {
+    fn accept_rect(&self, area: &Rectangle) -> Rectangle {
         Rectangle {
-            x: self.area.x + self.area.width * 0.9 - self.margin,
-            y: self.area.y + self.area.height * 0.8 - self.margin,
-            width: self.area.width * 0.1,
-            height: self.area.height * 0.2,
+            x: area.x + area.width * 0.9 - self.margin,
+            y: area.y + area.height * 0.8 - self.margin,
+            width: area.width * 0.1,
+            height: area.height * 0.2,
         }
     }
 }
@@ -295,9 +295,19 @@ where
     B: Backend + iced_graphics::backend::Text,
     T: StyleSheet,
 {
-    fn layout(&self, _renderer: &Renderer<B, T>, _bounds: Size, _position: iced::Point) -> Node {
+    fn layout(&self, _renderer: &Renderer<B, T>, bounds: Size, _position: iced::Point) -> Node {
         let mut n = Node::new(self.area.size());
-        n.move_to(self.area.position());
+        let my_side = self.area.width + self.area.x;
+        let on_side = bounds.width;
+        let pos = if my_side > on_side {
+            Point {
+                x: self.area.x - (my_side - on_side),
+                y: self.area.y,
+            }
+        } else {
+            self.area.position()
+        };
+        n.move_to(pos);
         n
     }
 
@@ -325,7 +335,7 @@ where
         );
 
         // Hue widget, used to determine the hue of the color to be picked
-        let hue_area = self.hue_widget_rect();
+        let hue_area = self.hue_widget_rect(&bounds);
         let mouse_over_hue = self.state.mouseover_hue;
         let hue = self.state.hue_widget.draw(hue_area.size(), |f| {
             let cols = f.width() as u16;
@@ -411,7 +421,7 @@ where
         );
 
         // Color widget, allows choosing the saturation and value of the color
-        let color_area = self.color_widget_rect();
+        let color_area = self.color_widget_rect(&bounds);
         let mouse_over_color = self.state.mouseover_color;
         let color = self.state.color_widget.draw(color_area.size(), |f| {
             let cols = f.width() as u16;
@@ -498,10 +508,10 @@ where
         );
 
         // Drawing sliders for choosing specific colors
-        let r_area = self.r_widget_rect();
-        let g_area = self.g_widget_rect();
-        let b_area = self.b_widget_rect();
-        let p_area = self.preview_rect();
+        let r_area = self.r_widget_rect(&bounds);
+        let g_area = self.g_widget_rect(&bounds);
+        let b_area = self.b_widget_rect(&bounds);
+        let p_area = self.preview_rect(&bounds);
         let col = hsv_to_color(self.state.hue, self.state.saturation, self.state.value);
 
         let mut r_border = if r_area.contains(cursor_position) {
@@ -576,7 +586,7 @@ where
         );
 
         // accept button
-        let butt = self.accept_rect();
+        let butt = self.accept_rect(&bounds);
         let accept_quad = if butt.contains(cursor_position) {
             Quad {
                 border_color: style.hover_border_color,
@@ -609,31 +619,34 @@ where
     fn on_event(
         &mut self,
         event: iced::Event,
-        _layout: iced_native::Layout<'_>,
+        layout: iced_native::Layout<'_>,
         cursor_position: iced::Point,
         _renderer: &Renderer<B, T>,
         _clipboard: &mut dyn iced_native::Clipboard,
         shell: &mut iced_native::Shell<'_, M>,
     ) -> Status {
+        let bounds = layout.bounds();
+
         match event {
             iced::Event::Mouse(event) => match event {
                 iced::mouse::Event::ButtonPressed(_) if self.area.contains(cursor_position) => {
                     if let Some(p) =
-                        rect_local_point_normalized(self.hue_widget_rect(), cursor_position)
+                        rect_local_point_normalized(self.hue_widget_rect(&bounds), cursor_position)
                     {
                         self.state.hue = p.x;
                         self.state.hue_widget.clear();
                         self.state.color_widget.clear();
                         Status::Captured
-                    } else if let Some(p) =
-                        rect_local_point_normalized(self.color_widget_rect(), cursor_position)
-                    {
+                    } else if let Some(p) = rect_local_point_normalized(
+                        self.color_widget_rect(&bounds),
+                        cursor_position,
+                    ) {
                         self.state.value = p.x;
                         self.state.saturation = 1.0 - p.y;
                         self.state.color_widget.clear();
                         Status::Captured
                     } else if let Some(p) =
-                        rect_local_point_normalized(self.r_widget_rect(), cursor_position)
+                        rect_local_point_normalized(self.r_widget_rect(&bounds), cursor_position)
                     {
                         let mut col =
                             hsv_to_color(self.state.hue, self.state.saturation, self.state.value);
@@ -646,7 +659,7 @@ where
                         self.state.color_widget.clear();
                         Status::Captured
                     } else if let Some(p) =
-                        rect_local_point_normalized(self.g_widget_rect(), cursor_position)
+                        rect_local_point_normalized(self.g_widget_rect(&bounds), cursor_position)
                     {
                         let mut col =
                             hsv_to_color(self.state.hue, self.state.saturation, self.state.value);
@@ -659,7 +672,7 @@ where
                         self.state.color_widget.clear();
                         Status::Captured
                     } else if let Some(p) =
-                        rect_local_point_normalized(self.b_widget_rect(), cursor_position)
+                        rect_local_point_normalized(self.b_widget_rect(&bounds), cursor_position)
                     {
                         let mut col =
                             hsv_to_color(self.state.hue, self.state.saturation, self.state.value);
@@ -671,7 +684,7 @@ where
                         self.state.hue_widget.clear();
                         self.state.color_widget.clear();
                         Status::Captured
-                    } else if self.accept_rect().contains(cursor_position) {
+                    } else if self.accept_rect(&bounds).contains(cursor_position) {
                         let col =
                             hsv_to_color(self.state.hue, self.state.saturation, self.state.value);
                         let m = (self.on_submit)(col);
@@ -683,11 +696,14 @@ where
                     }
                 }
                 iced::mouse::Event::CursorMoved { position } => {
-                    if self.hue_widget_rect().contains(position) != self.state.mouseover_hue {
+                    if self.hue_widget_rect(&bounds).contains(position) != self.state.mouseover_hue
+                    {
                         self.state.hue_widget.clear();
                         self.state.mouseover_hue = !self.state.mouseover_hue;
                     }
-                    if self.color_widget_rect().contains(position) != self.state.mouseover_color {
+                    if self.color_widget_rect(&bounds).contains(position)
+                        != self.state.mouseover_color
+                    {
                         self.state.color_widget.clear();
                         self.state.mouseover_color = !self.state.mouseover_color;
                     }
