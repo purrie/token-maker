@@ -2,22 +2,31 @@
 
 This document contains ideas and goals for the project as well as description of progress for each. Entries closer to the top can be considered of higher priority for current development.
 
-* TODO UI/UX
-- [X] Use styles to make the program look pretty
-- [X] Style the color picker widget
-- [X] Style Frame Maker
-- [X] Style Settings Page
-- [X] Style file browser
+* TODO Production
+This is a list of functionality what I want for the program to consider it ready to be used by regular people
+
+** UI/UX [0/6]
 - [ ] Frames need to have improved frame choice UI and implement categories
 - [ ] Make offset be displayed at 0 instead of center of the image
 - [ ] Export button should become red if any workspace points to a file that already exist
 - [ ] There should be a button that allows switching base/source image for all workspaces at once
 - [ ] Move close button to top bar and have it choose which workspace to close
+- [ ] Color Picker should allow direct value input
 
-* Bugs
-- Trackpad doesn't release when the button is released off its area.
-- There's no way to reset trackpad zoom level
-- Frame browser seems to be displaying frames twice each
+** Bug fixes [0/3]
+- [ ] Trackpad doesn't release when the button is released off its area.
+- [ ] There's no way to reset trackpad zoom level
+- [ ] Color Picker gets clipped away on the window edge
+
+** Modifiers [0/4]
+- [ ] Ability to reorder modifiers
+- [ ] Custom widget or style for modifier list items
+- [ ] Auto-alpha / greenscreen modifier
+- [ ] Backgrounds modifier
+
+** Manual
+There needs to be a document that properly outlines the functionality of the program and its components. Maybe a website? Something accessible locally would be nice, so I could distribute it with the program, especially if it would be accessible through the program itself.
+
 
 * Modifiers
 Bonus points if modifiers could be applied only to specified part of the image
@@ -93,9 +102,10 @@ Most thin frames won't be very visible so they don't need anything elaborate on 
 Thick frames have enough space to have some basic patterns drawn on them.
 
 ** Card Art
+Going to wait for text modifier with this one probably
 
 ** Border frames
-For portraits
+For portraits. In portrait and landscape aspects.
 
 ** Decorations
 Various minor icons that can be added onto the image
@@ -117,9 +127,11 @@ Just a way to quickly add and set up the workspace with basic defaults for speci
 This should be both a menu or set of buttons that will quickly add a workspace with selected template using the image loaded in the last workspace, as well as a set of choices in the regular new workspace screen to quickly set it up after loading the image.
 
 * File browser
-- Need to implement a way to have multiple file extension filters at the same time to properly display all supported image formats when opening a file
 - Bookmarks for easier navigation
 - Image preview area to allow user to see the selected image file
+
+* Icons
+Button text should be replaced with icons when it makes sense. Which would primarily mean header buttons.
 
 * TODO Image Source
 ** DONE URL source
