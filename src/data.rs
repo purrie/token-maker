@@ -350,6 +350,7 @@ macro_rules! load_data_path {
                 )*
                 d
             },
+            #[cfg(not(debug_assertions))]
             {
                 let mut d = dirs::data_local_dir().unwrap();
                 d.push(PROJECT_NAME);
@@ -358,7 +359,7 @@ macro_rules! load_data_path {
                 )*
                 d
             },
-            #[cfg(not(windows))]
+            #[cfg(all(not(windows), not(debug_assertions)))]
             {
                 let mut d = PathBuf::from("/usr/share/");
                 d.push(PROJECT_NAME);
