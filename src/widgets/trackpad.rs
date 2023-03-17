@@ -175,7 +175,8 @@ where
                 iced::mouse::Event::CursorMoved { position } => match &self.on_drag {
                     Some(on_drag) if local_state.tracking => {
                         let delta = position - local_state.cursor;
-                        let new_point = self.position - delta;
+                        let new_point = self.position + delta;
+
                         let m = (on_drag)(local_state.mods, local_state.button, new_point, delta);
                         let Some(m) = m else {
                             return Status::Ignored;

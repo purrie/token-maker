@@ -13,7 +13,7 @@ pub enum ImageOperation {
     Begin {
         image: Arc<RgbaImage>,
         resolution: Size<u32>,
-        offset: Point,
+        focus_point: Point,
         size: f32,
     },
     /// Uses the mask image to hide parts of the rendered image, dark parts of the mask hide pixels in the result
@@ -33,9 +33,9 @@ impl ImageOperation {
             ImageOperation::Begin {
                 image,
                 resolution,
-                offset,
+                focus_point,
                 size,
-            } => resample_image(image, resolution, offset, size).await,
+            } => resample_image(image, resolution, focus_point, size).await,
             _ => panic!("Image processing began on a wrong operation"),
         }
     }

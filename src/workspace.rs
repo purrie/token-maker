@@ -100,8 +100,8 @@ impl Workspace {
             output: name,
             dirty: true,
             offset: Point {
-                x: source.width() as f32 / 2.0,
-                y: source.height() as f32 / 10.0,
+                x: 0.0,
+                y: source.height() as f32 / 3.0,
             },
             template,
             format: pdata
@@ -131,10 +131,7 @@ impl Workspace {
                     width: source.width(),
                     height: source.height(),
                 };
-                data.offset = Point {
-                    x: data.export_size.width as f32 * 0.5,
-                    y: data.export_size.height as f32 * 0.5,
-                };
+                data.offset = Point { x: 0.0, y: 0.0 };
                 let (command, frame) = ModifierTag::Frame.make_box(pdata, &data);
                 modifiers.push(frame);
                 command.map(|x| WorkspaceMessage::ModifierMessage(0, x))
@@ -294,7 +291,10 @@ impl Workspace {
             let mut ops = vec![ImageOperation::Begin {
                 image: self.source.clone(),
                 resolution: self.data.export_size,
-                offset: self.data.offset,
+                focus_point: Point {
+                    x: self.source.width() as f32 * 0.5 - self.data.offset.x,
+                    y: self.source.height() as f32 * 0.5 - self.data.offset.y,
+                },
                 size: self.data.zoom,
             }];
 
@@ -371,16 +371,15 @@ impl Workspace {
         } else {
             let img = Trackpad::new(img)
                 .with_drag(self.data.offset, |mods, butt, point, delta| match butt {
-                    iced::mouse::Button::Left => {
-                        Some(WorkspaceMessage::Slide(if mods.shift() {
-                            Point {
-                                x: point.x + delta.x * 0.9,
-                                y: point.y + delta.y * 0.9,
-                            }
-                        } else {
-                            point
-                        }))
-                    }
+                    iced::mouse::Button::Left => Some(WorkspaceMessage::Slide(if mods.shift() {
+                        // decreasing the speed of movement for more granular control
+                        Point {
+                            x: point.x - delta.x * 0.9,
+                            y: point.y - delta.y * 0.9,
+                        }
+                    } else {
+                        point
+                    })),
                     _ => None,
                 })
                 .with_click(|mods, button, _| match button {
