@@ -1,4 +1,4 @@
-use std::fmt::Display;
+use std::{fmt::Display, path::PathBuf};
 use std::sync::Arc;
 use std::time::Duration;
 
@@ -576,8 +576,8 @@ impl Workspace {
             .into()
     }
 
-    /// Exports latest preview image to drive
-    pub fn export(&self, pdata: &ProgramData) {
+    /// Constructs the path buffer pointing to the desired export path for the image
+    fn construct_export_path(&self, pdata: &ProgramData) -> PathBuf {
         let mut path = pdata.output.clone();
         // Constructing the final name for the export
         let name = self
@@ -590,6 +590,17 @@ impl Workspace {
             .replace('$', "");
         path.push(name);
         path.set_extension(self.data.format.to_string());
+        path
+    }
+
+    /// Tests if the path set as export in this workspace already contains a file
+    pub fn is_destructive_export(&self, pdata: &ProgramData) -> bool {
+        self.construct_export_path(pdata).exists()
+    }
+
+    /// Exports latest preview image to drive
+    pub fn export(&self, pdata: &ProgramData) {
+        let path = self.construct_export_path(pdata);
         // Produce the image
         let Data::Rgba { width, height, pixels } = self.cached_result.data() else {
             panic!("doesn't work!");

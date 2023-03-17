@@ -548,11 +548,25 @@ impl TokenMaker {
                 if let Err(e) = self.can_save() {
                     tooltip(button("Export"), e, tooltip::Position::Right)
                 } else {
-                    tooltip(
-                        button("Export").on_press(Message::Export),
-                        "Export to selected folder",
-                        tooltip::Position::Right,
-                    )
+                    if self
+                        .workspaces
+                        .iter()
+                        .any(|x| x.is_destructive_export(&self.data))
+                    {
+                        tooltip(
+                            button("Export")
+                                .on_press(Message::Export)
+                                .style(Style::Danger.into()),
+                            "One or more workspaces will override existing file",
+                            tooltip::Position::Right,
+                        )
+                    } else {
+                        tooltip(
+                            button("Export").on_press(Message::Export),
+                            "Export to selected folder",
+                            tooltip::Position::Right,
+                        )
+                    }
                 },
             ]
             .spacing(5)
