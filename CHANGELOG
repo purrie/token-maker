@@ -1,4 +1,10 @@
 
+# v0.4.2
+- Fixed color picker being clipped by the side of the window
+- Frame modifier now allows the frames to be filtered by category
+- Image offset is now tracked from the center of the image rather than top left corner
+- Export button warns if the user is about to override existing file
+
 # v0.4.1
 - Prettified the UI
 
