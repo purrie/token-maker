@@ -1,6 +1,6 @@
-use std::{fmt::Display, path::PathBuf};
 use std::sync::Arc;
 use std::time::Duration;
+use std::{fmt::Display, path::PathBuf};
 
 use iced::{
     widget::{
@@ -78,8 +78,6 @@ pub enum WorkspaceMessage {
     View(f32),
     /// Resets the view zoom level
     ResetViewZoom,
-    /// Request to close the workspace
-    Close,
 }
 
 impl Workspace {
@@ -252,9 +250,6 @@ impl Workspace {
                     .set(PersistentData::WorkspaceID, PersistentData::Format, format);
                 Command::none()
             }
-            WorkspaceMessage::Close => {
-                unreachable!("This event must be hijacked by the program to close this workspace!")
-            }
         }
     }
 
@@ -331,6 +326,27 @@ impl Workspace {
         iced::time::every(Duration::from_secs_f32(0.05)).map(|_| WorkspaceMessage::Render)
     }
 
+    /// Replaces the image
+    pub fn set_source(
+        &mut self,
+        source: Arc<RgbaImage>,
+        pdata: &ProgramData,
+    ) -> Command<WorkspaceMessage> {
+        match &self.data.template {
+            WorkspaceTemplate::Portrait => {
+                self.data.export_size = Size {
+                    width: source.width(),
+                    height: source.height(),
+                }
+            }
+            _ => {}
+        }
+        self.cached_preview = image_arc_to_handle(&source);
+        self.source = source;
+        self.data.dirty = true;
+        self.update_modifiers(pdata)
+    }
+
     /// Returns the source image this workspace uses
     pub fn get_source(&self) -> &Arc<RgbaImage> {
         &self.source
@@ -339,6 +355,11 @@ impl Workspace {
     /// Returns a preview image
     pub fn get_source_preview(&self) -> Handle {
         self.cached_preview.clone()
+    }
+
+    /// Returns the rendered image with all workspace operations applied
+    pub fn get_preview(&self) -> Handle {
+        self.cached_result.clone()
     }
 
     /// Returns the name this workspace will save the output to
@@ -429,8 +450,6 @@ impl Workspace {
                 PickList::new(&ImageFormat::EXPORTABLE[..], Some(self.data.format), |x| {
                     WorkspaceMessage::SetFormat(x)
                 }),
-                horizontal_space(5),
-                button("Close").on_press(WorkspaceMessage::Close),
             ]
             .height(Length::Shrink)
             .align_items(Alignment::Center),

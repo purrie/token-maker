@@ -5,12 +5,12 @@ This document contains ideas and goals for the project as well as description of
 * TODO Production
 This is a list of functionality what I want for the program to consider it ready to be used by regular people
 
-** UI/UX [3/7]
+** UI/UX [5/7]
 - [X] Frames need to have improved frame choice UI and implement categories
 - [X] Make offset be displayed at 0 instead of center of the image
 - [X] Export button should become red if any workspace points to a file that already exist
-- [ ] There should be a button that allows switching base/source image for all workspaces at once
-- [ ] Move close button to top bar and have it choose which workspace to close
+- [X] There should be a button that allows switching base/source image for all workspaces at once
+- [X] Move close button to top bar and have it choose which workspace to close
 - [ ] Color Picker should allow direct value input
 - [ ] Make tooltips have better visibility
 

@@ -48,9 +48,13 @@ pub enum Message {
     DisplaySettings,
     /// Opens UI for adding a new workspace
     DisplayWorkspaceCreation,
+    /// Switches screen to let user close a workspace
+    DisplayCloseWorkspace,
     /// Request to display currently active workspaces.
     /// If none were created so far, it displays workspace creation screen
     DisplayWorkspaces,
+    /// Displays screen for replacing image in all workspaces
+    DisplaySourceImageReplacement,
     /// Request to display frame making editor
     LookForFrame,
     /// Message related to the workspace
@@ -86,17 +90,22 @@ pub enum Mode {
     CreateWorkspace,
     /// Regular operation of the program, displays all active workspaces
     Workspace,
-    /// Displays the file browser
+    /// Display widgets for closing open workspaces
+    CloseWorkspace,
+    /// Display the file browser
     FileBrowser(BrowsingFor),
     /// Display UI for customizing how the program works or looks
     Settings,
     /// Display editor for making frames
     FrameMaker,
+    /// Screen for swapping image in all open workspaces
+    SourceSwap,
 }
 
 #[derive(Debug, Clone, PartialEq)]
 pub enum BrowsingFor {
     Token,
+    ReplacementToken,
     Output,
     Frame,
 }
@@ -161,7 +170,14 @@ impl Application for TokenMaker {
     fn update(&mut self, message: Self::Message) -> Command<Self::Message> {
         match message {
             Message::LookForImage => {
-                self.operation = Mode::FileBrowser(BrowsingFor::Token);
+                match self.operation {
+                    Mode::CreateWorkspace => self.operation = Mode::FileBrowser(BrowsingFor::Token),
+                    Mode::SourceSwap => {
+                        self.operation = Mode::FileBrowser(BrowsingFor::ReplacementToken)
+                    }
+                    _ => unreachable!(),
+                }
+
                 self.data.file.set_filter(image_filter);
                 self.data.file.refresh_path().unwrap();
                 Command::none()
@@ -197,12 +213,32 @@ impl Application for TokenMaker {
             Message::ImageDownloadResult(res) => {
                 self.download_in_progress = false;
                 match res {
-                    Ok(img) => {
-                        let name = String::from("image");
-                        let c = self.add_workspace(name, img.into());
-                        self.main_screen();
-                        c
-                    }
+                    Ok(img) => match self.operation {
+                        Mode::CreateWorkspace => {
+                            let name = String::from("image");
+                            let c = self.add_workspace(name, img.into());
+                            self.main_screen();
+                            c
+                        }
+                        Mode::SourceSwap => {
+                            let arc = Arc::new(img);
+                            self.data.naming.project_name = String::from("image");
+                            let cmd = self
+                                .workspaces
+                                .iter_mut()
+                                .map(|x| x.set_source(arc.clone(), &self.data))
+                                .enumerate()
+                                .map(|(i, x)| x.map(move |x| Message::Workspace(i, x)))
+                                .fold(vec![], |mut v, c| {
+                                    v.push(c);
+                                    v
+                                });
+
+                            self.main_screen();
+                            Command::batch(cmd)
+                        }
+                        _ => unreachable!(),
+                    },
                     Err(e) => {
                         self.data.status.error(&e);
                         Command::none()
@@ -253,11 +289,36 @@ impl Application for TokenMaker {
                                     }
                                 }
 
+                                BrowsingFor::ReplacementToken => {
+                                    if let Ok(img) = image::open(&path) {
+                                        let img = img.into_rgba8();
+                                        let name =
+                                            path.file_stem().unwrap().to_string_lossy().to_string();
+                                        self.data.naming.project_name = name;
+                                        let img = Arc::new(img);
+                                        let cmd = self
+                                            .workspaces
+                                            .iter_mut()
+                                            .map(|x| x.set_source(img.clone(), &self.data))
+                                            .enumerate()
+                                            .map(|(i, x)| x.map(move |x| Message::Workspace(i, x)))
+                                            .fold(vec![], |mut v, c| {
+                                                v.push(c);
+                                                v
+                                            });
+                                        self.main_screen();
+                                        Command::batch(cmd)
+                                    } else {
+                                        Command::none()
+                                    }
+                                }
+
                                 BrowsingFor::Output => {
                                     self.data.output = path;
                                     self.main_screen();
                                     Command::none()
                                 }
+
                                 BrowsingFor::Frame => {
                                     if let Ok(img) = image::open(&path) {
                                         let img = img.into_rgba8();
@@ -294,6 +355,11 @@ impl Application for TokenMaker {
                 command
             }
 
+            Message::DisplayCloseWorkspace => {
+                self.operation = Mode::CloseWorkspace;
+                Command::none()
+            }
+
             Message::DisplayWorkspaceCreation => {
                 self.operation = Mode::CreateWorkspace;
                 Command::none()
@@ -301,6 +367,11 @@ impl Application for TokenMaker {
 
             Message::DisplayWorkspaces => {
                 self.main_screen();
+                Command::none()
+            }
+
+            Message::DisplaySourceImageReplacement => {
+                self.operation = Mode::SourceSwap;
                 Command::none()
             }
 
@@ -319,6 +390,7 @@ impl Application for TokenMaker {
                         self.data.naming.project_name = String::from("");
                     }
                 }
+                self.main_screen();
                 Command::none()
             }
 
@@ -394,6 +466,7 @@ impl Application for TokenMaker {
                 self.data.file.view().map(|x| Message::FileBrowser(x)),
                 status
             ],
+            Mode::SourceSwap => col![top_bar, self.swap_source_image_view(), status,],
             Mode::CreateWorkspace => col![top_bar, self.workspace_add_view(), status],
             Mode::Workspace => col![top_bar, self.workspace_view(), status],
             Mode::Settings => col![top_bar, self.settings_view(), status],
@@ -404,6 +477,7 @@ impl Application for TokenMaker {
                     .map(|x| Message::FrameMakerMessage(x)),
                 status
             ],
+            Mode::CloseWorkspace => col![top_bar, self.workspace_close_view(), status],
         };
 
         container(ui)
@@ -493,13 +567,24 @@ impl TokenMaker {
     /// Main program UI located at the top of the window
     fn top_bar(&self) -> Element<Message, Renderer> {
         let left = match self.operation {
-            Mode::Workspace => {
-                row![button("Add Workspace").on_press(Message::DisplayWorkspaceCreation)]
-            }
+            Mode::Workspace => row![
+                text("Workspace: "),
+                button("Add").on_press(Message::DisplayWorkspaceCreation),
+                button("Close").on_press(Message::DisplayCloseWorkspace),
+                button("Replace Image").on_press(Message::DisplaySourceImageReplacement),
+            ]
+            .align_items(Alignment::Center)
+            .spacing(4),
             Mode::CreateWorkspace if self.workspaces.len() > 0 => {
                 row![button("Cancel").on_press(Message::DisplayWorkspaces)]
             }
+            Mode::CloseWorkspace => {
+                row![button("Cancel").on_press(Message::DisplayWorkspaces)]
+            }
             Mode::FrameMaker => {
+                row![button("Cancel").on_press(Message::DisplayWorkspaces)]
+            }
+            Mode::SourceSwap => {
                 row![button("Cancel").on_press(Message::DisplayWorkspaces)]
             }
             _ => {
@@ -600,32 +685,20 @@ impl TokenMaker {
 
     /// Constructs UI for displaying all workspaces
     fn workspace_view(&self) -> Element<Message, Renderer> {
-        // Handles converting the workspace message into program message
-        macro_rules! event {
-            ($ev:expr, $i:expr) => {
-                match &$ev {
-                    // Handling requests sent from workspace to the application
-                    WorkspaceMessage::Close => Message::WorkspaceClose($i),
-                    // only specific requests are considered for application, others are routed back to the workspace
-                    _ => Message::Workspace($i, $ev),
-                }
-            };
-        }
-
         // Different drawings for different layouts
         match self.data.layout {
             Layout::Parallel => {
                 container(Row::with_children(self.workspaces.iter().enumerate().fold(
                     Vec::new(),
                     |mut c, (i, x)| {
-                        c.push(x.view(&self.data).map(move |x| event!(x, i)));
+                        c.push(x.view(&self.data).map(move |x| Message::Workspace(i, x)));
                         c
                     },
                 )))
             }
             Layout::Stacking(i) => {
                 let ui = self.workspaces.get(i).unwrap();
-                let ui = ui.view(&self.data).map(move |x| event!(x, i));
+                let ui = ui.view(&self.data).map(move |x| Message::Workspace(i, x));
                 container(col![
                     (0..self.workspaces.len()).fold(
                         row![text("Workspaces: ")]
@@ -644,26 +717,93 @@ impl TokenMaker {
         .into()
     }
 
+    fn download_in_progress_view(&self) -> Element<Message, Renderer> {
+        let content = row![
+            horizontal_space(Length::Fill),
+            container(text("Loading..."))
+                .style(Style::Frame)
+                .padding(20),
+            horizontal_space(Length::Fill),
+        ]
+        .align_items(Alignment::Center)
+        .height(Length::Fill)
+        .width(Length::Fill);
+        container(content)
+            .width(Length::Fill)
+            .height(Length::Fill)
+            .style(Style::Margins)
+            .into()
+    }
+
+    fn swap_source_image_view(&self) -> Element<Message, Renderer> {
+        if self.download_in_progress {
+            return self.download_in_progress_view();
+        }
+
+        let openers = row![
+            button("Open file").on_press(Message::LookForImage),
+            button("Paste URL").on_press(Message::LookForImageFromUrl),
+        ]
+        .spacing(5);
+
+        let openers = container(openers).style(Style::Frame).padding(20);
+
+        container(col![
+            vertical_space(Length::Fill),
+            row![
+                horizontal_space(Length::Fill),
+                openers,
+                horizontal_space(Length::Fill),
+            ],
+            vertical_space(Length::Fill),
+        ])
+        .width(Length::Fill)
+        .height(Length::Fill)
+        .style(Style::Margins)
+        .into()
+    }
+
+    fn workspace_close_view(&self) -> Element<Message, Renderer> {
+        let views = self
+            .workspaces
+            .iter()
+            .enumerate()
+            .map(|(i, x)| (i, picture(x.get_preview())))
+            .map(|(i, x)| {
+                // all this just to have UI parity with the workspace
+                let butt = button("Close").on_press(Message::WorkspaceClose(i));
+                let butt = container(butt)
+                    .width(Length::Fill)
+                    .height(Length::FillPortion(1))
+                    .style(Style::Frame)
+                    .center_x()
+                    .center_y();
+                let butt = container(butt)
+                    .padding(2)
+                    .width(Length::Fill)
+                    .height(Length::FillPortion(1))
+                    .style(Style::Margins);
+                let x = container(x)
+                    .width(Length::Fill)
+                    .height(Length::FillPortion(3))
+                    .style(Style::Margins)
+                    .center_x()
+                    .center_y();
+                col![butt, x]
+                    .width(Length::Fill)
+                    .height(Length::Fill)
+                    .align_items(Alignment::Center)
+            })
+            .fold(row![], |r, c| r.push(c));
+
+        views.into()
+    }
+
     /// Constructs UI for creating a new workspace
     fn workspace_add_view(&self) -> Element<Message, Renderer> {
         if self.download_in_progress {
-            let content = row![
-                horizontal_space(Length::Fill),
-                container(text("Loading..."))
-                    .style(Style::Frame)
-                    .padding(20),
-                horizontal_space(Length::Fill),
-            ]
-            .align_items(Alignment::Center)
-            .height(Length::Fill)
-            .width(Length::Fill);
-            return container(content)
-                .width(Length::Fill)
-                .height(Length::Fill)
-                .style(Style::Margins)
-                .into();
+            return self.download_in_progress_view();
         }
-
         let templates = WorkspaceTemplate::ALL.iter().fold(
             row![text("Template:")]
                 .spacing(10)
