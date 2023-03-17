@@ -601,7 +601,7 @@ impl TokenMaker {
                         button("Can't save yet"),
                         "Click on the image to create the mask first",
                         tooltip::Position::Left
-                    )]
+                    ).style(Style::Frame)]
                 }
             }
             Mode::Settings => {
@@ -628,10 +628,10 @@ impl TokenMaker {
                 tooltip(
                     button("Set Export Path").on_press(Message::LookForOutputFolder),
                     format!("Path: {}", self.data.output.to_string_lossy()),
-                    tooltip::Position::Left
-                ),
+                    tooltip::Position::Bottom
+                ).style(Style::Frame),
                 if let Err(e) = self.can_save() {
-                    tooltip(button("Export"), e, tooltip::Position::Right)
+                    tooltip(button("Export"), e, tooltip::Position::Bottom).style(Style::Frame)
                 } else {
                     if self
                         .workspaces
@@ -643,14 +643,14 @@ impl TokenMaker {
                                 .on_press(Message::Export)
                                 .style(Style::Danger.into()),
                             "One or more workspaces will override existing file",
-                            tooltip::Position::Right,
-                        )
+                            tooltip::Position::Bottom,
+                        ).style(Style::Frame)
                     } else {
                         tooltip(
                             button("Export").on_press(Message::Export),
                             "Export to selected folder",
-                            tooltip::Position::Right,
-                        )
+                            tooltip::Position::Bottom,
+                        ).style(Style::Frame)
                     }
                 },
             ]
