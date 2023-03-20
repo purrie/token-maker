@@ -13,6 +13,8 @@ use iced_native::{
 
 use crate::image::{color_to_hsv, hsv_to_color};
 
+use super::text_box::{self, TextBox, TextBoxStyle};
+
 pub struct ColorPicker<'c, M, R>
 where
     R: iced_native::Renderer,
@@ -30,7 +32,7 @@ impl<'c, M, B, T> Widget<M, Renderer<B, T>> for ColorPicker<'c, M, Renderer<B, T
 where
     M: Clone,
     B: Backend + iced_graphics::backend::Text,
-    T: StyleSheet,
+    T: StyleSheet + text_box::StyleSheet<Style = TextBoxStyle>,
 {
     fn width(&self) -> iced::Length {
         self.width
@@ -45,7 +47,78 @@ where
     }
 
     fn state(&self) -> tree::State {
-        tree::State::new(State::default())
+        let mut state = State::default();
+
+        let inserter = |content: &mut String, cursor: &mut usize, c: char| {
+            let point = content.find('.');
+            let first_char = content.chars().nth(0);
+            match (c, point, first_char) {
+                ('1', Some(p), _) if p == *cursor => {
+                    *content = String::from("1.00");
+                    *cursor = 2;
+                    Status::Captured
+                }
+                ('0', Some(p), _) if p == *cursor => {
+                    *content = String::from("0.00");
+                    *cursor = 2;
+                    Status::Captured
+                }
+                ('.', None, Some(s)) => {
+                    match s {
+                        '0' => {
+                            content.insert(1, '.');
+                        }
+                        '1' => {
+                            *content = String::from("1.00");
+                        }
+                        _ => {
+                            content.insert_str(0, "0.");
+                        }
+                    }
+                    *cursor = 2;
+                    Status::Captured
+                }
+                ('.', None, None) => {
+                    content.insert_str(0, "0.");
+                    *cursor = 2;
+                    Status::Captured
+                }
+                ('1', None, _) => {
+                    *content = String::from("1.00");
+                    *cursor = 2;
+                    Status::Captured
+                }
+                (x, None, _) if x.is_numeric() => {
+                    *content = format!("0.{}", x);
+                    *cursor = 3;
+                    Status::Captured
+                }
+                (x, Some(p), Some('0')) if x.is_numeric() && p < *cursor && *cursor < 6 => {
+                    content.insert(*cursor, x);
+                    *cursor += 1;
+                    if content.len() > 6 {
+                        *content = content[..6].to_string();
+                    }
+                    Status::Captured
+                }
+                (x, Some(p), Some(_)) if x.is_numeric() && p < *cursor && *cursor < 6 => {
+                    content.remove(0);
+                    content.insert(0, '0');
+                    content.insert(*cursor, x);
+                    *cursor += 1;
+                    if content.len() > 6 {
+                        *content = content[..6].to_string();
+                    }
+                    Status::Captured
+                }
+                _ => Status::Ignored,
+            }
+        };
+        state.r_input.set_input(inserter);
+        state.g_input.set_input(inserter);
+        state.b_input.set_input(inserter);
+
+        tree::State::new(state)
     }
 
     fn layout(&self, _renderer: &Renderer<B, T>, limits: &Limits) -> Node {
@@ -178,12 +251,52 @@ struct State {
     hue_widget: iced::widget::canvas::Cache,
     color_widget: iced::widget::canvas::Cache,
 
+    r_input: TextBox,
+    g_input: TextBox,
+    b_input: TextBox,
+
     hue: f32,
     saturation: f32,
     value: f32,
 
     mouseover_hue: bool,
     mouseover_color: bool,
+}
+
+impl State {
+    fn regenerate_ui(&mut self) {
+        self.hue_widget.clear();
+        self.color_widget.clear();
+
+        let Color { r, g, b, a: _ } = hsv_to_color(self.hue, self.saturation, self.value);
+        let r = format!("{:.4}", r);
+        let g = format!("{:.4}", g);
+        let b = format!("{:.4}", b);
+
+        self.r_input.set_content(r);
+        self.g_input.set_content(g);
+        self.b_input.set_content(b);
+    }
+
+    fn update_color_from_input(&mut self) {
+        let Ok(r) = self.r_input.get_content().parse() else {
+            return;
+        };
+        let Ok(g) = self.g_input.get_content().parse() else {
+            return;
+        };
+        let Ok(b) = self.b_input.get_content().parse() else {
+            return;
+        };
+
+        let (hue, sat, val) = color_to_hsv(Color { r, g, b, a: 1.0 });
+        self.hue = hue;
+        self.saturation = sat;
+        self.value = val;
+
+        self.hue_widget.clear();
+        self.color_widget.clear();
+    }
 }
 
 struct Overlay<'a, M, R>
@@ -224,76 +337,13 @@ where
             style,
         }
     }
-
-    fn hue_widget_rect(&self, area: &Rectangle) -> Rectangle {
-        Rectangle {
-            x: area.x + self.margin,
-            y: area.y + self.margin,
-            width: area.width * 0.5 - self.spacing * 0.5 - self.margin,
-            height: area.height * 0.1,
-        }
-    }
-
-    fn color_widget_rect(&self, area: &Rectangle) -> Rectangle {
-        Rectangle {
-            x: area.x + self.margin,
-            y: area.y + area.height * 0.1 + self.spacing + self.margin,
-            width: area.width * 0.5 - self.spacing * 0.5 - self.margin,
-            height: area.height - self.margin * 2.0 - self.spacing - area.height * 0.1,
-        }
-    }
-
-    fn r_widget_rect(&self, area: &Rectangle) -> Rectangle {
-        Rectangle {
-            x: area.x + area.width * 0.5 + self.spacing * 0.5,
-            y: area.y + self.margin,
-            width: area.width * 0.5 - self.margin - self.spacing * 0.5,
-            height: area.height * 0.1,
-        }
-    }
-
-    fn g_widget_rect(&self, area: &Rectangle) -> Rectangle {
-        Rectangle {
-            x: area.x + area.width * 0.5 + self.spacing * 0.5,
-            y: area.y + self.margin + area.height * 0.1 + self.spacing,
-            width: area.width * 0.5 - self.margin - self.spacing * 0.5,
-            height: area.height * 0.1,
-        }
-    }
-
-    fn b_widget_rect(&self, area: &Rectangle) -> Rectangle {
-        Rectangle {
-            x: area.x + area.width * 0.5 + self.spacing * 0.5,
-            y: area.y + self.margin + area.height * 0.2 + self.spacing * 2.0,
-            width: area.width * 0.5 - self.margin - self.spacing * 0.5,
-            height: area.height * 0.1,
-        }
-    }
-
-    fn preview_rect(&self, area: &Rectangle) -> Rectangle {
-        Rectangle {
-            x: area.x + area.width * 0.95 - self.margin,
-            y: area.y + self.margin + area.height * 0.3 + self.spacing * 3.0,
-            width: area.width * 0.05,
-            height: area.height * 0.1,
-        }
-    }
-
-    fn accept_rect(&self, area: &Rectangle) -> Rectangle {
-        Rectangle {
-            x: area.x + area.width * 0.9 - self.margin,
-            y: area.y + area.height * 0.8 - self.margin,
-            width: area.width * 0.1,
-            height: area.height * 0.2,
-        }
-    }
 }
 
 impl<'a, M, B, T> iced_native::Overlay<M, Renderer<B, T>> for Overlay<'a, M, Renderer<B, T>>
 where
     M: Clone,
     B: Backend + iced_graphics::backend::Text,
-    T: StyleSheet,
+    T: StyleSheet + text_box::StyleSheet<Style = TextBoxStyle>,
 {
     fn layout(&self, _renderer: &Renderer<B, T>, bounds: Size, _position: iced::Point) -> Node {
         let mut n = Node::new(self.area.size());
@@ -335,7 +385,7 @@ where
         );
 
         // Hue widget, used to determine the hue of the color to be picked
-        let hue_area = self.hue_widget_rect(&bounds);
+        let hue_area = hue_widget_rect(&bounds, self.margin, self.spacing);
         let mouse_over_hue = self.state.mouseover_hue;
         let hue = self.state.hue_widget.draw(hue_area.size(), |f| {
             let cols = f.width() as u16;
@@ -421,7 +471,7 @@ where
         );
 
         // Color widget, allows choosing the saturation and value of the color
-        let color_area = self.color_widget_rect(&bounds);
+        let color_area = color_widget_rect(&bounds, self.margin, self.spacing);
         let mouse_over_color = self.state.mouseover_color;
         let color = self.state.color_widget.draw(color_area.size(), |f| {
             let cols = f.width() as u16;
@@ -508,10 +558,13 @@ where
         );
 
         // Drawing sliders for choosing specific colors
-        let r_area = self.r_widget_rect(&bounds);
-        let g_area = self.g_widget_rect(&bounds);
-        let b_area = self.b_widget_rect(&bounds);
-        let p_area = self.preview_rect(&bounds);
+        let r_area = slider_widget_rect(&bounds, self.margin, self.spacing, 0.0);
+        let g_area = slider_widget_rect(&bounds, self.margin, self.spacing, 1.0);
+        let b_area = slider_widget_rect(&bounds, self.margin, self.spacing, 2.0);
+        let p_area = preview_rect(&bounds, self.margin, self.spacing);
+        let r_input = slider_text_box_rect(&bounds, self.margin, self.spacing, 0.0);
+        let g_input = slider_text_box_rect(&bounds, self.margin, self.spacing, 1.0);
+        let b_input = slider_text_box_rect(&bounds, self.margin, self.spacing, 2.0);
         let col = hsv_to_color(self.state.hue, self.state.saturation, self.state.value);
 
         let mut r_border = if r_area.contains(cursor_position) {
@@ -574,6 +627,17 @@ where
         renderer.fill_quad(g_border, Color::from_rgb(0.0, col.g, 0.0));
         renderer.fill_quad(b_border, Color::from_rgb(0.0, 0.0, col.b));
 
+        // draw the text input boxes
+        self.state
+            .r_input
+            .draw(r_input, theme, renderer, cursor_position);
+        self.state
+            .g_input
+            .draw(g_input, theme, renderer, cursor_position);
+        self.state
+            .b_input
+            .draw(b_input, theme, renderer, cursor_position);
+
         // preview square
         renderer.fill_quad(
             Quad {
@@ -586,7 +650,7 @@ where
         );
 
         // accept button
-        let butt = self.accept_rect(&bounds);
+        let butt = accept_rect(&bounds, self.margin);
         let accept_quad = if butt.contains(cursor_position) {
             Quad {
                 border_color: style.hover_border_color,
@@ -621,33 +685,76 @@ where
         event: iced::Event,
         layout: iced_native::Layout<'_>,
         cursor_position: iced::Point,
-        _renderer: &Renderer<B, T>,
+        renderer: &Renderer<B, T>,
         _clipboard: &mut dyn iced_native::Clipboard,
         shell: &mut iced_native::Shell<'_, M>,
     ) -> Status {
         let bounds = layout.bounds();
 
+        let r_input = slider_text_box_rect(&bounds, self.margin, self.spacing, 0.0);
+        match self
+            .state
+            .r_input
+            .on_event(r_input, &event, renderer, cursor_position)
+        {
+            text_box::TextBoxStatus::Ignored => {}
+            text_box::TextBoxStatus::Captured => return Status::Captured,
+            text_box::TextBoxStatus::ContentChanged => {
+                self.state.update_color_from_input();
+                return Status::Captured;
+            }
+        }
+
+        let g_input = slider_text_box_rect(&bounds, self.margin, self.spacing, 1.0);
+        match self
+            .state
+            .g_input
+            .on_event(g_input, &event, renderer, cursor_position)
+        {
+            text_box::TextBoxStatus::Ignored => {}
+            text_box::TextBoxStatus::Captured => return Status::Captured,
+            text_box::TextBoxStatus::ContentChanged => {
+                self.state.update_color_from_input();
+                return Status::Captured;
+            }
+        }
+
+        let b_input = slider_text_box_rect(&bounds, self.margin, self.spacing, 2.0);
+        match self
+            .state
+            .b_input
+            .on_event(b_input, &event, renderer, cursor_position)
+        {
+            text_box::TextBoxStatus::Ignored => {}
+            text_box::TextBoxStatus::Captured => return Status::Captured,
+            text_box::TextBoxStatus::ContentChanged => {
+                self.state.update_color_from_input();
+                return Status::Captured;
+            }
+        }
+
         match event {
             iced::Event::Mouse(event) => match event {
                 iced::mouse::Event::ButtonPressed(_) if self.area.contains(cursor_position) => {
-                    if let Some(p) =
-                        rect_local_point_normalized(self.hue_widget_rect(&bounds), cursor_position)
-                    {
+                    if let Some(p) = rect_local_point_normalized(
+                        hue_widget_rect(&bounds, self.margin, self.spacing),
+                        cursor_position,
+                    ) {
                         self.state.hue = p.x;
-                        self.state.hue_widget.clear();
-                        self.state.color_widget.clear();
+                        self.state.regenerate_ui();
                         Status::Captured
                     } else if let Some(p) = rect_local_point_normalized(
-                        self.color_widget_rect(&bounds),
+                        color_widget_rect(&bounds, self.margin, self.spacing),
                         cursor_position,
                     ) {
                         self.state.value = p.x;
                         self.state.saturation = 1.0 - p.y;
-                        self.state.color_widget.clear();
+                        self.state.regenerate_ui();
                         Status::Captured
-                    } else if let Some(p) =
-                        rect_local_point_normalized(self.r_widget_rect(&bounds), cursor_position)
-                    {
+                    } else if let Some(p) = rect_local_point_normalized(
+                        slider_widget_rect(&bounds, self.margin, self.spacing, 0.0),
+                        cursor_position,
+                    ) {
                         let mut col =
                             hsv_to_color(self.state.hue, self.state.saturation, self.state.value);
                         col.r = p.x;
@@ -655,12 +762,12 @@ where
                         self.state.hue = h;
                         self.state.saturation = s;
                         self.state.value = v;
-                        self.state.hue_widget.clear();
-                        self.state.color_widget.clear();
+                        self.state.regenerate_ui();
                         Status::Captured
-                    } else if let Some(p) =
-                        rect_local_point_normalized(self.g_widget_rect(&bounds), cursor_position)
-                    {
+                    } else if let Some(p) = rect_local_point_normalized(
+                        slider_widget_rect(&bounds, self.margin, self.spacing, 1.0),
+                        cursor_position,
+                    ) {
                         let mut col =
                             hsv_to_color(self.state.hue, self.state.saturation, self.state.value);
                         col.g = p.x;
@@ -668,12 +775,12 @@ where
                         self.state.hue = h;
                         self.state.saturation = s;
                         self.state.value = v;
-                        self.state.hue_widget.clear();
-                        self.state.color_widget.clear();
+                        self.state.regenerate_ui();
                         Status::Captured
-                    } else if let Some(p) =
-                        rect_local_point_normalized(self.b_widget_rect(&bounds), cursor_position)
-                    {
+                    } else if let Some(p) = rect_local_point_normalized(
+                        slider_widget_rect(&bounds, self.margin, self.spacing, 2.0),
+                        cursor_position,
+                    ) {
                         let mut col =
                             hsv_to_color(self.state.hue, self.state.saturation, self.state.value);
                         col.b = p.x;
@@ -681,10 +788,9 @@ where
                         self.state.hue = h;
                         self.state.saturation = s;
                         self.state.value = v;
-                        self.state.hue_widget.clear();
-                        self.state.color_widget.clear();
+                        self.state.regenerate_ui();
                         Status::Captured
-                    } else if self.accept_rect(&bounds).contains(cursor_position) {
+                    } else if accept_rect(&bounds, self.margin).contains(cursor_position) {
                         let col =
                             hsv_to_color(self.state.hue, self.state.saturation, self.state.value);
                         let m = (self.on_submit)(col);
@@ -696,12 +802,13 @@ where
                     }
                 }
                 iced::mouse::Event::CursorMoved { position } => {
-                    if self.hue_widget_rect(&bounds).contains(position) != self.state.mouseover_hue
+                    if hue_widget_rect(&bounds, self.margin, self.spacing).contains(position)
+                        != self.state.mouseover_hue
                     {
                         self.state.hue_widget.clear();
                         self.state.mouseover_hue = !self.state.mouseover_hue;
                     }
-                    if self.color_widget_rect(&bounds).contains(position)
+                    if color_widget_rect(&bounds, self.margin, self.spacing).contains(position)
                         != self.state.mouseover_color
                     {
                         self.state.color_widget.clear();
@@ -724,6 +831,68 @@ fn rect_local_point_normalized(rect: Rectangle, point: Point) -> Option<Point> {
         })
     } else {
         None
+    }
+}
+
+fn slider_widget_rect(area: &Rectangle, margin: f32, spacing: f32, offset: f32) -> Rectangle {
+    let width = area.width * 0.3 - margin - spacing * 0.5;
+    let height = area.height * 0.1;
+    let x = area.x + area.width * 0.5 + spacing * 0.5;
+    let y = area.y + margin + (height + spacing) * offset;
+    Rectangle {
+        x,
+        y,
+        width,
+        height,
+    }
+}
+
+fn slider_text_box_rect(area: &Rectangle, margin: f32, spacing: f32, offset: f32) -> Rectangle {
+    let width = area.width * 0.15 - margin - spacing * 0.5;
+    let height = area.height * 0.1;
+    let x = area.x + area.width * 0.8 + spacing * 0.5;
+    let y = area.y + margin + (height + spacing) * offset;
+    Rectangle {
+        x,
+        y,
+        width,
+        height,
+    }
+}
+
+fn hue_widget_rect(area: &Rectangle, margin: f32, spacing: f32) -> Rectangle {
+    Rectangle {
+        x: area.x + margin,
+        y: area.y + margin,
+        width: area.width * 0.5 - spacing * 0.5 - margin,
+        height: area.height * 0.1,
+    }
+}
+
+fn color_widget_rect(area: &Rectangle, margin: f32, spacing: f32) -> Rectangle {
+    Rectangle {
+        x: area.x + margin,
+        y: area.y + area.height * 0.1 + spacing + margin,
+        width: area.width * 0.5 - spacing * 0.5 - margin,
+        height: area.height - margin * 2.0 - spacing - area.height * 0.1,
+    }
+}
+
+fn preview_rect(area: &Rectangle, margin: f32, spacing: f32) -> Rectangle {
+    Rectangle {
+        x: area.x + area.width * 0.95 - margin,
+        y: area.y + margin + area.height * 0.3 + spacing * 3.0,
+        width: area.width * 0.05,
+        height: area.height * 0.1,
+    }
+}
+
+fn accept_rect(area: &Rectangle, margin: f32) -> Rectangle {
+    Rectangle {
+        x: area.x + area.width * 0.9 - margin,
+        y: area.y + area.height * 0.8 - margin,
+        width: area.width * 0.1,
+        height: area.height * 0.2,
     }
 }
 
@@ -780,7 +949,7 @@ impl<'a, M, B, T> From<ColorPicker<'a, M, Renderer<B, T>>> for Element<'a, M, Re
 where
     M: Clone + 'a,
     B: Backend + iced_graphics::backend::Text + 'a,
-    T: StyleSheet + 'a + Default,
+    T: StyleSheet + 'a + Default + text_box::StyleSheet<Style = TextBoxStyle>,
 {
     fn from(value: ColorPicker<'a, M, Renderer<B, T>>) -> Self {
         Self::new(value)
@@ -792,7 +961,7 @@ impl<'a, M, B, T> From<Overlay<'a, M, Renderer<B, T>>>
 where
     M: Clone,
     B: Backend + iced_graphics::backend::Text + 'a,
-    T: StyleSheet + 'a,
+    T: StyleSheet + 'a + text_box::StyleSheet<Style = TextBoxStyle>,
 {
     fn from(value: Overlay<'a, M, Renderer<B, T>>) -> Self {
         Self::new(iced::Point { x: 0.0, y: 0.0 }, Box::new(value))

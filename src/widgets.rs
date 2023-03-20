@@ -1,6 +1,7 @@
 mod color_picker;
 mod file_browser;
 mod pixel_sampler;
+mod text_box;
 mod trackpad;
 
 pub use color_picker::ColorPicker;
