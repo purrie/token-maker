@@ -1,5 +1,4 @@
 use std::collections::HashSet;
-use std::path::PathBuf;
 use std::sync::Arc;
 
 use iced::widget::{
@@ -13,7 +12,7 @@ use iced::{
 
 use crate::data::{load_frames, FrameImage, ProgramData, ProgramDataMessage};
 use crate::frame_maker::{FrameMaker, FrameMakerMessage};
-use crate::image::RgbaImage;
+use crate::image::{RgbaImage, image_filter, download_image};
 use crate::persistence::{PersistentKey, PersistentValue};
 use crate::style::{Layout, Style};
 use crate::widgets::{BrowserOperation, BrowsingResult, Target};
@@ -194,17 +193,8 @@ impl Application for TokenMaker {
                 self.download_in_progress = true;
                 Command::perform(
                     async move {
-                        let Ok(res) = reqwest::get(url).await else {
-                        return Message::ImageDownloadResult(Err("Error: Clipboard doesn't contain a valid URL".to_string()));
-                    };
-                        let Ok(btes) = res.bytes().await else {
-                        return Message::ImageDownloadResult(Err("Error: Couldn't download image".to_string()))
-                    };
-                        let Ok(img) = image::load_from_memory(&btes) else {
-                        return Message::ImageDownloadResult(Err("Error: URL doesn't point to a valid image".to_string()));
-                    };
-                        let img = img.into_rgba8();
-                        Message::ImageDownloadResult(Ok(img))
+                        let img = download_image(url).await;
+                        Message::ImageDownloadResult(img)
                     },
                     |x| x,
                 )
@@ -903,13 +893,3 @@ impl PersistentKey for PersistentData {
     }
 }
 
-fn image_filter(path: &PathBuf) -> bool {
-    let Some(ext) = path.extension().and_then(|x| Some(x.to_string_lossy().to_lowercase())) else {
-        return false;
-    };
-
-    match ext.as_str() {
-        "png" | "webp" | "jpg" | "jpeg" => true,
-        _ => false,
-    }
-}

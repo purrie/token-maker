@@ -52,7 +52,7 @@ pub struct Frame {
     source_mask: Option<Arc<GrayscaleImage>>,
 }
 
-impl Modifier for Frame {
+impl<'a> Modifier<'a> for Frame {
     type Message = FrameMessage;
 
     fn create(pdata: &ProgramData, wdata: &WorkspaceData) -> (Command<Self::Message>, Self) {

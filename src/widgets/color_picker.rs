@@ -1,6 +1,8 @@
 use iced::{
-    event::Status, widget::canvas::Path, Color, Element, Length, Point, Rectangle, Size, Theme,
-    Vector, alignment::{Horizontal, Vertical},
+    alignment::{Horizontal, Vertical},
+    event::Status,
+    widget::canvas::Path,
+    Color, Element, Length, Point, Rectangle, Size, Theme, Vector,
 };
 use iced_graphics::{Backend, Renderer};
 use iced_native::{
@@ -11,7 +13,7 @@ use iced_native::{
     Renderer as _, Widget,
 };
 
-use crate::image::{color_to_hsv, hsv_to_color};
+use crate::image::convert::{color_to_hsv, hsv_to_color};
 
 use super::text_box::{self, TextBox, TextBoxStyle};
 
@@ -840,9 +842,8 @@ where
                         self.state.value = v;
                         self.state.regenerate_ui();
                         Status::Captured
-                    } else if
-                        slider_text_box_rect(&bounds, self.margin, self.spacing, 3.0)
-                            .contains(cursor_position)
+                    } else if slider_text_box_rect(&bounds, self.margin, self.spacing, 3.0)
+                        .contains(cursor_position)
                     {
                         // toggle for slider input type
                         match self.state.color_input_type {

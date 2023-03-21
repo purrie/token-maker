@@ -1,6 +1,7 @@
 mod frame;
+mod background;
 
-use std::fmt::Display;
+use std::fmt::{Display, Debug};
 
 use crate::{
     data::{ProgramData, WorkspaceData},
@@ -8,15 +9,16 @@ use crate::{
 };
 
 use frame::{Frame, FrameMessage};
+use background::{Background, BackgroundMessage};
 use iced::{Command, Element, Renderer};
 use iced_native::image::Handle;
 
 /// Trait for modifiers to implement
 ///
 /// Technically not needed due to modifiers being used primarly through enums but helpful in standarizing what functionality they need to support
-pub trait Modifier {
+pub trait Modifier<'a> {
     /// The message type expected by this modifier
-    type Message: 'static + Into<ModifierMessage> + From<ModifierMessage>;
+    type Message: 'static + Into<ModifierMessage> + From<ModifierMessage> + Debug + Clone;
 
     /// This function is called to provide image operation of the modifier to be applied to the image in rendering process
     fn get_image_operation(&self, pdata: &ProgramData, wdata: &WorkspaceData) -> ModifierOperation;
@@ -43,10 +45,10 @@ pub trait Modifier {
     /// The function is only called on the currently selected modifier and only if `wants_main_view` function returns true
     #[allow(unused_variables)]
     fn main_view(
-        &self,
+        &'a self,
         image: Handle,
-        pdata: &ProgramData,
-        wdata: &WorkspaceData,
+        pdata: &'a ProgramData,
+        wdata: &'a WorkspaceData,
     ) -> Element<Self::Message, Renderer> {
         iced::widget::image(image).into()
     }
@@ -62,9 +64,9 @@ pub trait Modifier {
     /// Optional UI elements to drive properties of the modifier
     #[allow(unused_variables)]
     fn properties_view(
-        &self,
-        pdata: &ProgramData,
-        wdata: &WorkspaceData,
+        &'a self,
+        pdata: &'a ProgramData,
+        wdata: &'a WorkspaceData,
     ) -> Option<Element<Self::Message, Renderer>> {
         None
     }
@@ -121,8 +123,8 @@ impl From<Vec<ImageOperation>> for ModifierOperation {
     }
 }
 
-make_modifier!(Frame);
-make_modifier_message!(FrameMessage);
+make_modifier!(Frame, Background);
+make_modifier_message!(FrameMessage, BackgroundMessage);
 
 /// This makro creates `ModifierBox` enum which is responsible for providing polymorphism feature for all modifiers.
 /// `ModifierBox` implements convenience functions for use with `Modifier` trait.
@@ -165,7 +167,7 @@ macro_rules! make_modifier {
                 }
             }
             /// UI for modifier properties
-            pub fn properties_view(&self, pdata: &ProgramData, wdata: &WorkspaceData) -> Option<Element<ModifierMessage, Renderer>> {
+            pub fn properties_view<'a>(&'a self, pdata: &'a ProgramData, wdata: &'a WorkspaceData) -> Option<Element<ModifierMessage, Renderer>> {
                 match self {
                     $(
                         ModifierBox::$md(x) => match x.properties_view(pdata, wdata) {
@@ -192,7 +194,7 @@ macro_rules! make_modifier {
                 }
             }
             /// UI for the main screen of the workspace for when the modifier needs larger space for specific tasks
-            pub fn main_view(&self, image: Handle, pdata: &ProgramData, wdata: &WorkspaceData) -> Element<ModifierMessage, Renderer> {
+            pub fn main_view<'a>(&'a self, image: Handle, pdata: &'a ProgramData, wdata: &'a WorkspaceData) -> Element<ModifierMessage, Renderer> {
                 match self {
                     $(
                         ModifierBox::$md(x) => x.main_view(image, pdata, wdata).map(|x| x.into()),
@@ -258,8 +260,8 @@ macro_rules! make_modifier_message {
     ($($mess:ident), +) => {
         #[derive(Debug, Clone)]
         pub enum ModifierMessage {
+            None,
             $(
-                None,
                 $mess($mess),
             )+
         }

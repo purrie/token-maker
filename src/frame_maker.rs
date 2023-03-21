@@ -10,7 +10,7 @@ use crate::{
         has_invalid_characters, sanitize_file_name, sanitize_file_name_allow_path, FrameImage,
         ProgramData,
     },
-    image::{image_to_handle, GrayscaleImage, RgbaImage},
+    image::{convert::image_to_handle, GrayscaleImage, RgbaImage},
     style::Style,
     widgets::PixelSampler,
 };

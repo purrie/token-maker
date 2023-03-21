@@ -21,7 +21,10 @@ use crate::{
     persistence::{PersistentKey, PersistentValue},
 };
 use crate::{
-    image::{image_arc_to_handle, image_to_handle, ImageFormat, ImageOperation, RgbaImage},
+    image::{
+        convert::{image_arc_to_handle, image_to_handle},
+        ImageFormat, ImageOperation, RgbaImage,
+    },
     style::Style,
 };
 
@@ -373,7 +376,7 @@ impl Workspace {
     }
 
     /// Workspace UI
-    pub fn view<'a>(&'a self, pdata: &ProgramData) -> Element<'a, WorkspaceMessage, Renderer> {
+    pub fn view<'a>(&'a self, pdata: &'a ProgramData) -> Element<'a, WorkspaceMessage, Renderer> {
         let img = self.get_output();
         let selected_mod = self.selected_modifier;
 
@@ -440,7 +443,7 @@ impl Workspace {
     }
 
     /// Constructs the toolbar portion of the workspace UI
-    fn toolbar<'a>(&'a self, pdata: &ProgramData) -> Element<'a, WorkspaceMessage, Renderer> {
+    fn toolbar<'a>(&'a self, pdata: &'a ProgramData) -> Element<'a, WorkspaceMessage, Renderer> {
         // main controls are mostly for customizing the workspace
         let main_controls = col![
             row![

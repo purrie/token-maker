@@ -12,7 +12,7 @@ use crate::persistence::{Persistence, PersistentKey, PersistentValue};
 use crate::status_bar::StatusBar;
 use crate::style::{Layout, Style};
 use crate::{
-    image::{image_to_handle, GrayscaleImage, ImageFormat, RgbaImage},
+    image::{convert::image_to_handle, GrayscaleImage, ImageFormat, RgbaImage},
     style::Theme,
     widgets::Browser,
     workspace::WorkspaceTemplate,

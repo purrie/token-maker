@@ -14,16 +14,18 @@ This is a list of functionality what I want for the program to consider it ready
 - [X] Color Picker should allow direct value input
 - [X] Make tooltips have better visibility
 
-** Bug fixes [3/3]
+** Bug fixes [3/4]
 - [X] Trackpad doesn't release when the button is released off its area.
 - [X] There's no way to reset trackpad zoom level
 - [X] Color Picker gets clipped away on the window edge
+- [ ] Frame modifier frames need to be centered within buttons
 
-** Modifiers [0/4]
+** Modifiers [1/5]
 - [ ] Ability to reorder modifiers
 - [ ] Custom widget or style for modifier list items
+- [ ] There needs to be clear distinction as to which modifier is currently selected
 - [ ] Auto-alpha / greenscreen modifier
-- [ ] Backgrounds modifier
+- [X] Backgrounds modifier
 
 ** Manual
 There needs to be a document that properly outlines the functionality of the program and its components. Maybe a website? Something accessible locally would be nice, so I could distribute it with the program, especially if it would be accessible through the program itself.
