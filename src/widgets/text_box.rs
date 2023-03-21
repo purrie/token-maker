@@ -176,16 +176,19 @@ impl TextBox {
                     if self.focus {
                         let click_pos = cursor_position.x - area.x;
                         self.cursor = 0;
+                        let mut len = click_pos;
                         for i in 1..=self.content.len() {
                             let slice_len = renderer
                                 .measure(
                                     &self.content[..i],
-                                    area.height,
+                                    renderer.default_size() - 4.0,
                                     Default::default(),
                                     area.size(),
                                 )
                                 .0;
-                            if slice_len < click_pos {
+                            let dist = (click_pos - slice_len).abs();
+                            if dist < len {
+                                len = dist;
                                 self.cursor += 1;
                             } else {
                                 break;
