@@ -400,7 +400,7 @@ where
             let bottom = Path::rectangle(
                 Point {
                     x: 0.0,
-                    y: f.height() - size - 1.0,
+                    y: f.height() - size,
                 },
                 Size {
                     width: f.width(),
@@ -416,7 +416,7 @@ where
             );
             let right = Path::rectangle(
                 Point {
-                    x: f.width() - size - 1.0,
+                    x: f.width() - size,
                     y: 0.0,
                 },
                 Size {
@@ -487,7 +487,7 @@ where
             let bottom = Path::rectangle(
                 Point {
                     x: 0.0,
-                    y: f.height() - size - 1.0,
+                    y: f.height() - size,
                 },
                 Size {
                     width: f.width(),
@@ -503,7 +503,7 @@ where
             );
             let right = Path::rectangle(
                 Point {
-                    x: f.width() - size - 1.0,
+                    x: f.width() - size,
                     y: 0.0,
                 },
                 Size {
