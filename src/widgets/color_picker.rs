@@ -1,6 +1,6 @@
 use iced::{
     event::Status, widget::canvas::Path, Color, Element, Length, Point, Rectangle, Size, Theme,
-    Vector,
+    Vector, alignment::{Horizontal, Vertical},
 };
 use iced_graphics::{Backend, Renderer};
 use iced_native::{
@@ -49,74 +49,12 @@ where
     fn state(&self) -> tree::State {
         let mut state = State::default();
 
-        let inserter = |content: &mut String, cursor: &mut usize, c: char| {
-            let point = content.find('.');
-            let first_char = content.chars().nth(0);
-            match (c, point, first_char) {
-                ('1', Some(p), _) if p == *cursor => {
-                    *content = String::from("1.00");
-                    *cursor = 2;
-                    Status::Captured
-                }
-                ('0', Some(p), _) if p == *cursor => {
-                    *content = String::from("0.00");
-                    *cursor = 2;
-                    Status::Captured
-                }
-                ('.', None, Some(s)) => {
-                    match s {
-                        '0' => {
-                            content.insert(1, '.');
-                        }
-                        '1' => {
-                            *content = String::from("1.00");
-                        }
-                        _ => {
-                            content.insert_str(0, "0.");
-                        }
-                    }
-                    *cursor = 2;
-                    Status::Captured
-                }
-                ('.', None, None) => {
-                    content.insert_str(0, "0.");
-                    *cursor = 2;
-                    Status::Captured
-                }
-                ('1', None, _) => {
-                    *content = String::from("1.00");
-                    *cursor = 2;
-                    Status::Captured
-                }
-                (x, None, _) if x.is_numeric() => {
-                    *content = format!("0.{}", x);
-                    *cursor = 3;
-                    Status::Captured
-                }
-                (x, Some(p), Some('0')) if x.is_numeric() && p < *cursor && *cursor < 6 => {
-                    content.insert(*cursor, x);
-                    *cursor += 1;
-                    if content.len() > 6 {
-                        *content = content[..6].to_string();
-                    }
-                    Status::Captured
-                }
-                (x, Some(p), Some(_)) if x.is_numeric() && p < *cursor && *cursor < 6 => {
-                    content.remove(0);
-                    content.insert(0, '0');
-                    content.insert(*cursor, x);
-                    *cursor += 1;
-                    if content.len() > 6 {
-                        *content = content[..6].to_string();
-                    }
-                    Status::Captured
-                }
-                _ => Status::Ignored,
-            }
-        };
-        state.r_input.set_input(inserter);
-        state.g_input.set_input(inserter);
-        state.b_input.set_input(inserter);
+        state.color_input_type = ColorInputType::Int;
+        state.r_input.set_input(u8_numbers_only_text_input);
+        state.g_input.set_input(u8_numbers_only_text_input);
+        state.b_input.set_input(u8_numbers_only_text_input);
+
+        state.regenerate_ui();
 
         tree::State::new(state)
     }
@@ -254,6 +192,7 @@ struct State {
     r_input: TextBox,
     g_input: TextBox,
     b_input: TextBox,
+    color_input_type: ColorInputType,
 
     hue: f32,
     saturation: f32,
@@ -269,9 +208,20 @@ impl State {
         self.color_widget.clear();
 
         let Color { r, g, b, a: _ } = hsv_to_color(self.hue, self.saturation, self.value);
-        let r = format!("{:.4}", r);
-        let g = format!("{:.4}", g);
-        let b = format!("{:.4}", b);
+        let (r, g, b) = match self.color_input_type {
+            ColorInputType::Float => {
+                let r = format!("{:.4}", r);
+                let g = format!("{:.4}", g);
+                let b = format!("{:.4}", b);
+                (r, g, b)
+            }
+            ColorInputType::Int => {
+                let r = format!("{}", (r * 255.0) as u8);
+                let g = format!("{}", (g * 255.0) as u8);
+                let b = format!("{}", (b * 255.0) as u8);
+                (r, g, b)
+            }
+        };
 
         self.r_input.set_content(r);
         self.g_input.set_content(g);
@@ -279,14 +229,35 @@ impl State {
     }
 
     fn update_color_from_input(&mut self) {
-        let Ok(r) = self.r_input.get_content().parse() else {
-            return;
-        };
-        let Ok(g) = self.g_input.get_content().parse() else {
-            return;
-        };
-        let Ok(b) = self.b_input.get_content().parse() else {
-            return;
+        let (r, g, b) = match self.color_input_type {
+            ColorInputType::Float => {
+                let Ok(r) = self.r_input.get_content().parse() else {
+                    return;
+                };
+                let Ok(g) = self.g_input.get_content().parse() else {
+                    return;
+                };
+                let Ok(b) = self.b_input.get_content().parse() else {
+                    return;
+                };
+                (r, g, b)
+            }
+            ColorInputType::Int => {
+                let Ok(r) = self.r_input.get_content().parse::<u8>() else {
+                    return;
+                };
+                let Ok(g) = self.g_input.get_content().parse::<u8>() else {
+                    return;
+                };
+                let Ok(b) = self.b_input.get_content().parse::<u8>() else {
+                    return;
+                };
+                let r = r as f32 / 255.0;
+                let g = g as f32 / 255.0;
+                let b = b as f32 / 255.0;
+
+                (r, g, b)
+            }
         };
 
         let (hue, sat, val) = color_to_hsv(Color { r, g, b, a: 1.0 });
@@ -561,10 +532,14 @@ where
         let r_area = slider_widget_rect(&bounds, self.margin, self.spacing, 0.0);
         let g_area = slider_widget_rect(&bounds, self.margin, self.spacing, 1.0);
         let b_area = slider_widget_rect(&bounds, self.margin, self.spacing, 2.0);
-        let p_area = preview_rect(&bounds, self.margin, self.spacing);
+        let r_label_area = slider_label_rect(&bounds, self.margin, self.spacing, 0.0);
+        let g_label_area = slider_label_rect(&bounds, self.margin, self.spacing, 1.0);
+        let b_label_area = slider_label_rect(&bounds, self.margin, self.spacing, 2.0);
+        let p_area = slider_label_rect(&bounds, self.margin, self.spacing, 3.0);
         let r_input = slider_text_box_rect(&bounds, self.margin, self.spacing, 0.0);
         let g_input = slider_text_box_rect(&bounds, self.margin, self.spacing, 1.0);
         let b_input = slider_text_box_rect(&bounds, self.margin, self.spacing, 2.0);
+        let toggle_input = slider_text_box_rect(&bounds, self.margin, self.spacing, 3.0);
         let col = hsv_to_color(self.state.hue, self.state.saturation, self.state.value);
 
         let mut r_border = if r_area.contains(cursor_position) {
@@ -612,6 +587,21 @@ where
                 bounds: b_area,
             }
         };
+        let toggle_border = if toggle_input.contains(cursor_position) {
+            Quad {
+                border_color: style.hover_border_color,
+                border_radius: style.hover_border_radius.into(),
+                border_width: style.hover_border_width,
+                bounds: toggle_input,
+            }
+        } else {
+            Quad {
+                border_color: style.border_color,
+                border_radius: style.border_radius.into(),
+                border_width: style.border_width,
+                bounds: toggle_input,
+            }
+        };
 
         // Drawing borders
         renderer.fill_quad(r_border, style.background);
@@ -637,6 +627,66 @@ where
         self.state
             .b_input
             .draw(b_input, theme, renderer, cursor_position);
+
+        // drawing toggle for text input type
+        renderer.fill_quad(toggle_border, style.button_color);
+        renderer.fill_text(Text {
+            content: match self.state.color_input_type {
+                ColorInputType::Float => "Float",
+                ColorInputType::Int => "Int",
+            },
+            bounds: Rectangle {
+                x: toggle_input.x + toggle_input.width * 0.5,
+                y: toggle_input.y + toggle_input.height * 0.5,
+                ..toggle_input
+            },
+            size: toggle_input.height - 4.0,
+            color: style.text_color,
+            font: Default::default(),
+            horizontal_alignment: iced::alignment::Horizontal::Center,
+            vertical_alignment: iced::alignment::Vertical::Center,
+        });
+
+        // labels for sliders
+        renderer.fill_text(Text {
+            content: "R",
+            bounds: Rectangle {
+                x: r_label_area.x + r_label_area.width * 0.5,
+                y: r_label_area.y + r_label_area.height * 0.5,
+                ..r_label_area
+            },
+            size: r_label_area.height - 4.0,
+            color: style.text_color,
+            font: Default::default(),
+            horizontal_alignment: Horizontal::Center,
+            vertical_alignment: Vertical::Center,
+        });
+        renderer.fill_text(Text {
+            content: "G",
+            bounds: Rectangle {
+                x: g_label_area.x + g_label_area.width * 0.5,
+                y: g_label_area.y + g_label_area.height * 0.5,
+                ..g_label_area
+            },
+            size: g_label_area.height - 4.0,
+            color: style.text_color,
+            font: Default::default(),
+            horizontal_alignment: Horizontal::Center,
+            vertical_alignment: Vertical::Center,
+        });
+        renderer.fill_text(Text {
+            content: "B",
+            bounds: Rectangle {
+                x: b_label_area.x + b_label_area.width * 0.5,
+                y: b_label_area.y + b_label_area.height * 0.5,
+                ..b_label_area
+            },
+            size: b_label_area.height - 4.0,
+            color: style.text_color,
+            font: Default::default(),
+            horizontal_alignment: Horizontal::Center,
+            vertical_alignment: Vertical::Center,
+        });
 
         // preview square
         renderer.fill_quad(
@@ -790,6 +840,27 @@ where
                         self.state.value = v;
                         self.state.regenerate_ui();
                         Status::Captured
+                    } else if
+                        slider_text_box_rect(&bounds, self.margin, self.spacing, 3.0)
+                            .contains(cursor_position)
+                    {
+                        // toggle for slider input type
+                        match self.state.color_input_type {
+                            ColorInputType::Float => {
+                                self.state.color_input_type = ColorInputType::Int;
+                                self.state.r_input.set_input(u8_numbers_only_text_input);
+                                self.state.g_input.set_input(u8_numbers_only_text_input);
+                                self.state.b_input.set_input(u8_numbers_only_text_input);
+                            }
+                            ColorInputType::Int => {
+                                self.state.color_input_type = ColorInputType::Float;
+                                self.state.r_input.set_input(float_numbers_only_text_input);
+                                self.state.g_input.set_input(float_numbers_only_text_input);
+                                self.state.b_input.set_input(float_numbers_only_text_input);
+                            }
+                        }
+                        self.state.regenerate_ui();
+                        Status::Captured
                     } else if accept_rect(&bounds, self.margin).contains(cursor_position) {
                         let col =
                             hsv_to_color(self.state.hue, self.state.saturation, self.state.value);
@@ -860,6 +931,19 @@ fn slider_text_box_rect(area: &Rectangle, margin: f32, spacing: f32, offset: f32
     }
 }
 
+fn slider_label_rect(area: &Rectangle, margin: f32, spacing: f32, offset: f32) -> Rectangle {
+    let height = area.height * 0.1;
+    let width = area.width * 0.1 - margin - spacing * 1.5;
+    let x = (area.x + area.width) - width - margin;
+    let y = area.y + margin + (height + spacing) * offset;
+    Rectangle {
+        x,
+        y,
+        width,
+        height,
+    }
+}
+
 fn hue_widget_rect(area: &Rectangle, margin: f32, spacing: f32) -> Rectangle {
     Rectangle {
         x: area.x + margin,
@@ -878,21 +962,131 @@ fn color_widget_rect(area: &Rectangle, margin: f32, spacing: f32) -> Rectangle {
     }
 }
 
-fn preview_rect(area: &Rectangle, margin: f32, spacing: f32) -> Rectangle {
-    Rectangle {
-        x: area.x + area.width * 0.95 - margin,
-        y: area.y + margin + area.height * 0.3 + spacing * 3.0,
-        width: area.width * 0.05,
-        height: area.height * 0.1,
-    }
-}
-
 fn accept_rect(area: &Rectangle, margin: f32) -> Rectangle {
     Rectangle {
         x: area.x + area.width * 0.9 - margin,
         y: area.y + area.height * 0.8 - margin,
         width: area.width * 0.1,
         height: area.height * 0.2,
+    }
+}
+
+#[derive(Default)]
+enum ColorInputType {
+    #[default]
+    Float,
+    Int,
+}
+
+fn u8_numbers_only_text_input(content: &mut String, cursor: &mut usize, c: char) -> Status {
+    if c.is_numeric() == false || *cursor >= 3 {
+        return Status::Ignored;
+    }
+
+    match c {
+        c if content.len() >= 2 => {
+            content.insert(*cursor, c);
+            *cursor += 1;
+            while content.len() > 3 {
+                content.remove(3);
+            }
+            // validating the value is within u8 range
+            match content.chars().nth(0).unwrap() {
+                // when the first number is 0 or 1 then any following can be whatever number
+                '0' | '1' => {}
+                // 2 introduces clamping
+                '2' => {
+                    match content.chars().nth(1).unwrap() {
+                        // anything smaller than 5 is good on second position and can accept anything on third
+                        x if x < '5' => {}
+                        // 5 can only take limited values on third position
+                        '5' => {
+                            // similarly as with second position, below and 5 is good here, above is clamped
+                            match content.chars().nth(2).unwrap() {
+                                x if x <= '5' => {}
+                                _ => content.replace_range(2..3, "5"),
+                            }
+                        }
+                        // anything larger than 5 is clamped to 5
+                        _ => content.replace_range(1..3, "55"),
+                    }
+                }
+                // first number can only be 0, 1 or 2, if it is any greater then we clamp to max value
+                _ => content.replace_range(0..3, "255"),
+            }
+            Status::Captured
+        }
+        c => {
+            content.insert(*cursor, c);
+            *cursor += 1;
+            Status::Captured
+        }
+    }
+}
+
+fn float_numbers_only_text_input(content: &mut String, cursor: &mut usize, c: char) -> Status {
+    let point = content.find('.');
+    let first_char = content.chars().nth(0);
+    match (c, point, first_char) {
+        ('1', Some(p), _) if p == *cursor => {
+            *content = String::from("1.00");
+            *cursor = 2;
+            Status::Captured
+        }
+        ('0', Some(p), _) if p == *cursor => {
+            *content = String::from("0.00");
+            *cursor = 2;
+            Status::Captured
+        }
+        ('.', None, Some(s)) => {
+            match s {
+                '0' => {
+                    content.insert(1, '.');
+                }
+                '1' => {
+                    *content = String::from("1.00");
+                }
+                _ => {
+                    content.insert_str(0, "0.");
+                }
+            }
+            *cursor = 2;
+            Status::Captured
+        }
+        ('.', None, None) => {
+            content.insert_str(0, "0.");
+            *cursor = 2;
+            Status::Captured
+        }
+        ('1', None, _) => {
+            *content = String::from("1.00");
+            *cursor = 2;
+            Status::Captured
+        }
+        (x, None, _) if x.is_numeric() => {
+            *content = format!("0.{}", x);
+            *cursor = 3;
+            Status::Captured
+        }
+        (x, Some(p), Some('0')) if x.is_numeric() && p < *cursor && *cursor < 6 => {
+            content.insert(*cursor, x);
+            *cursor += 1;
+            if content.len() > 6 {
+                *content = content[..6].to_string();
+            }
+            Status::Captured
+        }
+        (x, Some(p), Some(_)) if x.is_numeric() && p < *cursor && *cursor < 6 => {
+            content.remove(0);
+            content.insert(0, '0');
+            content.insert(*cursor, x);
+            *cursor += 1;
+            if content.len() > 6 {
+                *content = content[..6].to_string();
+            }
+            Status::Captured
+        }
+        _ => Status::Ignored,
     }
 }
 
@@ -934,8 +1128,8 @@ impl StyleSheet for Theme {
                 background: col.background.base.color,
                 border_color: col.background.weak.color,
                 hover_border_color: col.background.strong.color,
-                button_color: col.primary.base.color,
-                text_color: col.primary.base.text,
+                button_color: col.primary.strong.color,
+                text_color: col.primary.strong.text,
                 border_width: 1.0,
                 border_radius: 0.0,
                 hover_border_width: 2.0,
