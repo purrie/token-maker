@@ -1,4 +1,4 @@
-use iced::{event::Status, Element, Length, Point, Rectangle, Size, Vector};
+use iced::{event::Status, ContentFit, Element, Length, Point, Rectangle, Size, Vector};
 use iced_native::{
     image::Handle,
     layout::{Limits, Node},
@@ -57,30 +57,11 @@ where
         _viewport: &Rectangle,
     ) {
         let image = self.handle.clone();
-        let size = renderer.dimensions(&image);
         let bounds = layout.bounds();
 
-        // Scaling the image to desired size
-        let size = Size {
-            width: size.width as f32,
-            height: size.height as f32,
-        };
+        let bounds = preview_rect(&image, renderer, &bounds);
 
-        // Creating the drawing area, with centering if the size of the image is smaller than the area we have for drawing
-        let area = Rectangle {
-            x: bounds.x + (bounds.width - size.width).max(0.0) / 2.0,
-            y: bounds.y + (bounds.height - size.height).max(0.0) / 2.0,
-            width: size.width,
-            height: size.height,
-        };
-
-        // rendering, with clipping if the image is larger than the area we have for drawing
-        let render = move |r: &mut Renderer| r.draw(image, area);
-        if size.width > bounds.width || size.height > bounds.height {
-            renderer.with_layer(bounds, render);
-        } else {
-            render(renderer);
-        }
+        renderer.draw(image, bounds);
     }
     fn on_event(
         &mut self,
@@ -96,6 +77,7 @@ where
             iced::Event::Mouse(mouse) => match mouse {
                 iced::mouse::Event::ButtonPressed(_) => {
                     let bounds = layout.bounds();
+                    let bounds = preview_rect(&self.handle, renderer, &bounds);
                     if bounds.contains(cursor_position) {
                         let mut pos = Vector {
                             x: cursor_position.x - bounds.x,
@@ -136,5 +118,25 @@ where
 {
     fn from(value: PixelSampler<'a, Message>) -> Self {
         Self::new(value)
+    }
+}
+
+fn preview_rect<Renderer>(image: &Handle, renderer: &Renderer, bounds: &Rectangle) -> Rectangle
+where
+    Renderer: iced_native::image::Renderer<Handle = Handle>,
+{
+    let size = renderer.dimensions(image);
+    let size = Size {
+        width: size.width as f32,
+        height: size.height as f32,
+    };
+
+    let c = ContentFit::Contain.fit(size, bounds.size());
+
+    Rectangle {
+        width: c.width,
+        height: c.height,
+        x: bounds.x + (bounds.width - c.width).max(0.0) / 2.0,
+        y: bounds.y + (bounds.height - c.height).max(0.0) / 2.0,
     }
 }
