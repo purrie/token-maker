@@ -2,7 +2,8 @@ use std::sync::Arc;
 
 use iced::{
     widget::{
-        button, column as col, radio, row, scrollable, scrollable::Properties, text, vertical_space,
+        button, column as col, container, radio, row, scrollable, scrollable::Properties, text,
+        vertical_space,
     },
     Alignment, Color, Command, Length, Size,
 };
@@ -258,12 +259,18 @@ impl<'a> Modifier<'a> for Frame {
                     .width(Length::Fill)
                     .height(Length::Shrink);
             }
-            row = row.push(
-                button(iced::widget::image(img.preview()).content_fit(iced::ContentFit::Contain))
+            row = row.push({
+                let img = iced::widget::image(img.preview()).content_fit(iced::ContentFit::Contain);
+                let img = container(img)
+                    .center_x()
+                    .center_y()
+                    .width(Length::Fill)
+                    .height(Length::Fill);
+                button(img)
                     .on_press(FrameMessage::FrameSelected(total))
                     .width(Length::Fill)
-                    .style(Style::Frame.into()),
-            );
+                    .style(Style::Frame.into())
+            });
             total += 1;
             count += 1;
         }

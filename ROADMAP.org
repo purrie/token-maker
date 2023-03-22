@@ -15,11 +15,11 @@ This is a list of functionality what I want for the program to consider it ready
 - [X] Make tooltips have better visibility
 - [X] The Workspace tabs should be moved to the header line, or at least made it so they don't steal space from workspace buttons
 
-** Bug fixes [3/4]
+** Bug fixes [4/4]
 - [X] Trackpad doesn't release when the button is released off its area.
 - [X] There's no way to reset trackpad zoom level
 - [X] Color Picker gets clipped away on the window edge
-- [ ] Frame modifier frames need to be centered within buttons
+- [X] Frame modifier frames need to be centered within buttons
 
 ** Modifiers [1/5]
 - [ ] Ability to reorder modifiers
