@@ -38,11 +38,7 @@ pub trait Modifier<'a> {
 
     /// This function provides UI that is to be rendered in the main workspace preview area
     ///
-    /// # Parameters
-    /// `image` - The image that is to be rendered in the preview, can be ignored if the modifier doesn't need it.
-    ///
     /// This function should only be used if the modifier needs larger UI area for its operations than properties view provide.
-    ///
     /// The function is only called on the currently selected modifier and only if `wants_main_view` function returns true
     #[allow(unused_variables)]
     fn main_view(
