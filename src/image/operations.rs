@@ -1,9 +1,9 @@
 use std::sync::Arc;
 
-use iced::{Point, Size, Color};
+use iced::{Color, Point, Size};
 use image::{GenericImageView, ImageBuffer, Pixel, Rgba};
 
-use super::{GrayscaleImage, RgbaImage};
+use super::{GrayscaleImage, RgbaImage, convert::pixel_to_color};
 
 /// Resizes the image, clipping out the image parts or adding transparent pixels to the borders
 ///
@@ -147,14 +147,11 @@ pub fn underlay_color(mut image: RgbaImage, color: Color) -> RgbaImage {
         u8::MAX,
     ];
     let color: Rgba<u8> = color.into();
-    image
-        .pixels_mut()
-        .filter(|x| x[3] < 255)
-        .for_each(|x| {
-            let mut color = color.clone();
-            color.blend(&x);
-            *x = color;
-        });
+    image.pixels_mut().filter(|x| x[3] < 255).for_each(|x| {
+        let mut color = color.clone();
+        color.blend(&x);
+        *x = color;
+    });
     image
 }
 
@@ -172,5 +169,37 @@ pub fn underlay_image(mut image: RgbaImage, under: Arc<RgbaImage>) -> RgbaImage 
             color.blend(&i);
             *i = color;
         });
+    image
+}
+
+/// Masks a specific color from the image, making matching pixels transparent
+///
+/// # Parameters
+/// `image` - Image to be masked
+/// `color` - color to mask out in the image
+/// `range` - determines how fuzzy the color matching is. Value of 0 will only match exact color while higher will match similar colors too.
+/// `blending` - determines the range outside of matching colors that are close to matches to turn partially transparent. Used to soften the edges around the matches. Value of 0 turns off the functionality.
+pub fn mask_color(mut image: RgbaImage, color: Color, range: f32, blending: f32) -> RgbaImage {
+    let range = range.min(1.0).max(0.0).powi(2);
+    let soft_border = blending.min(1.0).max(0.0).powi(2);
+    let soft_border_range = range + soft_border;
+
+    image.pixels_mut().for_each(|p| {
+        let c = pixel_to_color(p);
+
+        let r = (c.r - color.r).abs().powi(2);
+        let g = (c.g - color.g).abs().powi(2);
+        let b = (c.b - color.b).abs().powi(2);
+        let vector_length = r + g + b;
+
+        if vector_length <= range  {
+            p[3] = 0;
+        } else if vector_length < soft_border_range {
+            let comb = vector_length - range;
+            let shade = comb / soft_border;
+            p[3] = (shade * 255.0) as u8;
+        }
+    });
+
     image
 }

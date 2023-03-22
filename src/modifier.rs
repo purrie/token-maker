@@ -1,5 +1,6 @@
 mod frame;
 mod background;
+mod greenscreen;
 
 use std::fmt::{Display, Debug};
 
@@ -8,6 +9,7 @@ use crate::{
     image::ImageOperation,
 };
 
+use greenscreen::{Greenscreen, GreenscreenMessage};
 use frame::{Frame, FrameMessage};
 use background::{Background, BackgroundMessage};
 use iced::{Command, Element, Renderer};
@@ -121,8 +123,8 @@ impl From<Vec<ImageOperation>> for ModifierOperation {
     }
 }
 
-make_modifier!(Frame, Background);
-make_modifier_message!(FrameMessage, BackgroundMessage);
+make_modifier!(Frame, Background, Greenscreen);
+make_modifier_message!(FrameMessage, BackgroundMessage, GreenscreenMessage);
 
 /// This makro creates `ModifierBox` enum which is responsible for providing polymorphism feature for all modifiers.
 /// `ModifierBox` implements convenience functions for use with `Modifier` trait.

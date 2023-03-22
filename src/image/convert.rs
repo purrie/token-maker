@@ -1,10 +1,10 @@
 use std::sync::Arc;
 
+use iced::Color;
 use iced_native::image::Handle;
 use image::Rgba;
 
-use super::{RgbaImage, GrayscaleImage};
-
+use super::{GrayscaleImage, RgbaImage};
 
 /// Transforms the image into iced image handle
 pub fn image_to_handle(image: RgbaImage) -> Handle {
@@ -33,11 +33,11 @@ pub fn grayscale_to_handle(mask: &GrayscaleImage) -> Handle {
 }
 
 /// Turns hsv color into iced rgb color. Valid value ranges are 0.0..=1.0
-pub fn hsv_to_color(hue: f32, saturation: f32, value: f32) -> iced::Color {
+pub fn hsv_to_color(hue: f32, saturation: f32, value: f32) -> Color {
     // if there's no saturation then we have pure grayscale, which means, only value matters
     if saturation <= 0.0 {
         let v = value;
-        return iced::Color::from_rgb(v, v, v);
+        return Color::from_rgb(v, v, v);
     }
 
     let hue = hue * 360.0;
@@ -60,11 +60,11 @@ pub fn hsv_to_color(hue: f32, saturation: f32, value: f32) -> iced::Color {
         _ => unreachable!(),
     };
 
-    iced::Color::from_rgb(r, g, b)
+    Color::from_rgb(r, g, b)
 }
 
 /// Turns the color into a hue, saturation and value components in that order
-pub fn color_to_hsv(color: iced::Color) -> (f32, f32, f32) {
+pub fn color_to_hsv(color: Color) -> (f32, f32, f32) {
     let min = color.r.min(color.b.min(color.g));
     let max = color.r.max(color.b.max(color.g));
     let delta = max - min;
@@ -79,15 +79,20 @@ pub fn color_to_hsv(color: iced::Color) -> (f32, f32, f32) {
     let hue = if color.r == max {
         (color.g - color.b) / delta
     } else if color.g == max {
-        2.0 + (color.b - color.r) / delta
+        2.0 + (color.b - color.r).abs() / delta
     } else {
-        4.0 + (color.r - color.g) / delta
+        4.0 + (color.r - color.g).abs() / delta
     } * 60.0
         / 360.0;
 
-    if hue < 0.0 {
-        (1.0 + hue, saturation, value)
-    } else {
-        (hue, saturation, value)
+    (hue, saturation, value)
+}
+
+pub fn pixel_to_color(pixel: &Rgba<u8>) -> Color {
+    Color {
+        r: pixel[0] as f32 / 255.0,
+        g: pixel[1] as f32 / 255.0,
+        b: pixel[2] as f32 / 255.0,
+        a: pixel[3] as f32 / 255.0,
     }
 }

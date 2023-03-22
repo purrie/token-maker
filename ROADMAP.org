@@ -21,11 +21,12 @@ This is a list of functionality what I want for the program to consider it ready
 - [X] Color Picker gets clipped away on the window edge
 - [X] Frame modifier frames need to be centered within buttons
 
-** Modifiers [1/5]
+** Modifiers [2/6]
 - [ ] Ability to reorder modifiers
 - [ ] Custom widget or style for modifier list items
 - [ ] There needs to be clear distinction as to which modifier is currently selected
-- [ ] Auto-alpha / greenscreen modifier
+- [X] Auto-alpha / greenscreen modifier
+- [ ] Flood mask. It should take a location and generate a mask from it, similarly to how frame maker generates a mask.
 - [X] Backgrounds modifier
 
 ** Manual

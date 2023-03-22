@@ -39,6 +39,9 @@ pub enum ImageOperation {
     ///
     /// This operation expects the both images to be the same resolution
     BackgroundImage(Arc<RgbaImage>),
+
+    /// Masks color from the image, turning matching pixels within the range transparent
+    MaskColor{ color: Color, range: f32, soft_border: f32 }
 }
 
 impl ImageOperation {
@@ -64,6 +67,7 @@ impl ImageOperation {
             ImageOperation::Blend { overlay } => blend_images(image, overlay.as_ref()),
             ImageOperation::BackgroundColor(color) => underlay_color(image, color),
             ImageOperation::BackgroundImage(under) => underlay_image(image, under),
+            ImageOperation::MaskColor { color, range, soft_border } => mask_color(image, color, range, soft_border),
         }
     }
 }
