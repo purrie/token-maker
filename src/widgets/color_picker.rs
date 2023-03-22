@@ -56,6 +56,11 @@ where
         state.g_input.set_input(u8_numbers_only_text_input);
         state.b_input.set_input(u8_numbers_only_text_input);
 
+        let (hue, sat, val) = color_to_hsv(self.color);
+        state.hue = hue;
+        state.saturation = sat;
+        state.value = val;
+
         state.regenerate_ui();
 
         tree::State::new(state)
