@@ -18,7 +18,7 @@ use crate::widgets::Trackpad;
 use crate::{
     data::{has_invalid_characters, sanitize_file_name, ProgramData, WorkspaceData},
     naming_convention::NamingConvention,
-    persistence::{PersistentKey, PersistentValue},
+    persistence::PersistentKey,
 };
 use crate::{
     image::{
@@ -30,12 +30,6 @@ use crate::{
 
 /// Workspace serves purpose of providing tools to take the source image through series of operations to final result
 pub struct Workspace {
-    /// Source image to be used as a starting point
-    source: Arc<RgbaImage>,
-    /// Result of the latest rendering job
-    cached_result: Handle,
-    /// Image used for displaying this workspace's preview when offering to copy the image for a new workspace
-    cached_preview: Handle,
     /// List of modifiers in order which they should be applied to the image
     modifiers: Vec<ModifierBox>,
     /// Currently selected modifier, used to choose which modifier should draw its UI
@@ -97,27 +91,7 @@ impl Workspace {
         pdata: &ProgramData,
         template: WorkspaceTemplate,
     ) -> (Command<WorkspaceMessage>, Self) {
-        let mut data = WorkspaceData {
-            output: name,
-            dirty: true,
-            offset: Point {
-                x: 0.0,
-                y: source.height() as f32 / 3.0,
-            },
-            template,
-            format: pdata
-                .cache
-                .get_copy(PersistentData::WorkspaceID, PersistentData::Format)
-                .and_then(|x| {
-                    if let PersistentValue::ImageFormat(x) = x {
-                        Some(x)
-                    } else {
-                        None
-                    }
-                })
-                .unwrap_or(ImageFormat::WebP),
-            ..Default::default()
-        };
+        let mut data = WorkspaceData::new(source, name, pdata);
         let mut modifiers = Vec::new();
 
         let command = match template {
@@ -129,8 +103,8 @@ impl Workspace {
             }
             WorkspaceTemplate::Portrait => {
                 data.export_size = Size {
-                    width: source.width(),
-                    height: source.height(),
+                    width: data.source.width(),
+                    height: data.source.height(),
                 };
                 data.offset = Point { x: 0.0, y: 0.0 };
                 let (command, frame) = ModifierTag::Frame.make_box(pdata, &data);
@@ -145,9 +119,6 @@ impl Workspace {
             data,
             modifiers,
 
-            cached_preview: image_arc_to_handle(&source),
-            cached_result: image_arc_to_handle(&source),
-            source,
             selected_modifier: 0,
             rendering: false,
         };
@@ -215,7 +186,7 @@ impl Workspace {
                 self.update_modifiers(pdata)
             }
             WorkspaceMessage::RenderResult(r) => {
-                self.cached_result = r;
+                self.data.image_result = r;
                 self.rendering = false;
                 Command::none()
             }
@@ -247,10 +218,7 @@ impl Workspace {
                 Command::none()
             }
             WorkspaceMessage::SetFormat(format) => {
-                self.data.format = format;
-                pdata
-                    .cache
-                    .set(PersistentData::WorkspaceID, PersistentData::Format, format);
+                self.data.set_export_format(format, pdata);
                 Command::none()
             }
         }
@@ -287,11 +255,11 @@ impl Workspace {
             self.rendering = true;
 
             let mut ops = vec![ImageOperation::Begin {
-                image: self.source.clone(),
+                image: self.data.source.clone(),
                 resolution: self.data.export_size,
                 focus_point: Point {
-                    x: self.source.width() as f32 * 0.5 - self.data.offset.x,
-                    y: self.source.height() as f32 * 0.5 - self.data.offset.y,
+                    x: self.data.source.width() as f32 * 0.5 - self.data.offset.x,
+                    y: self.data.source.height() as f32 * 0.5 - self.data.offset.y,
                 },
                 size: self.data.zoom,
             }];
@@ -344,25 +312,25 @@ impl Workspace {
             }
             _ => {}
         }
-        self.cached_preview = image_arc_to_handle(&source);
-        self.source = source;
+        self.data.source_preview = image_arc_to_handle(&source);
+        self.data.source = source;
         self.data.dirty = true;
         self.update_modifiers(pdata)
     }
 
     /// Returns the source image this workspace uses
     pub fn get_source(&self) -> &Arc<RgbaImage> {
-        &self.source
+        &self.data.source
     }
 
     /// Returns a preview image
     pub fn get_source_preview(&self) -> Handle {
-        self.cached_preview.clone()
+        self.data.source_preview.clone()
     }
 
     /// Returns the rendered image with all workspace operations applied
     pub fn get_preview(&self) -> Handle {
-        self.cached_result.clone()
+        self.data.image_result.clone()
     }
 
     /// Returns the name this workspace will save the output to
@@ -372,7 +340,7 @@ impl Workspace {
 
     /// Returns a clone of the latest rendering result
     pub fn get_output(&self) -> Handle {
-        self.cached_result.clone()
+        self.data.image_result.clone()
     }
 
     /// Workspace UI
@@ -450,7 +418,7 @@ impl Workspace {
                 text_input("Output name", &self.data.output, |x| {
                     WorkspaceMessage::OutputNameChange(x)
                 }),
-                PickList::new(&ImageFormat::EXPORTABLE[..], Some(self.data.format), |x| {
+                PickList::new(&ImageFormat::EXPORTABLE[..], Some(self.data.get_export_format()), |x| {
                     WorkspaceMessage::SetFormat(x)
                 }),
             ]
@@ -459,8 +427,8 @@ impl Workspace {
             row![
                 text(&format!(
                     "Image size: {}x{}",
-                    self.source.width(),
-                    self.source.height()
+                    self.data.source.width(),
+                    self.data.source.height()
                 )),
                 horizontal_space(Length::FillPortion(1)),
                 text("Zoom: "),
@@ -592,10 +560,7 @@ impl Workspace {
         .spacing(2)
         .padding(2);
 
-        container(top)
-            .style(Style::Margins)
-            .height(246)
-            .into()
+        container(top).style(Style::Margins).height(246).into()
     }
 
     /// Constructs the path buffer pointing to the desired export path for the image
@@ -611,7 +576,7 @@ impl Workspace {
             )
             .replace('$', "");
         path.push(name);
-        path.set_extension(self.data.format.to_string());
+        path.set_extension(self.data.get_export_format().to_string());
         path
     }
 
@@ -624,7 +589,7 @@ impl Workspace {
     pub fn export(&self, pdata: &ProgramData) {
         let path = self.construct_export_path(pdata);
         // Produce the image
-        let Data::Rgba { width, height, pixels } = self.cached_result.data() else {
+        let Data::Rgba { width, height, pixels } = self.data.image_result.data() else {
             panic!("doesn't work!");
         };
         image::save_buffer(path, pixels, *width, *height, image::ColorType::Rgba8).unwrap();
@@ -693,16 +658,3 @@ impl Display for WorkspaceTemplate {
     }
 }
 
-enum PersistentData {
-    WorkspaceID,
-    Format,
-}
-
-impl PersistentKey for PersistentData {
-    fn get_id(&self) -> &'static str {
-        match self {
-            PersistentData::WorkspaceID => "workspace",
-            PersistentData::Format => "image-format",
-        }
-    }
-}

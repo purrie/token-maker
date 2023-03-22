@@ -7,6 +7,7 @@ use iced::widget::{
 use iced::{Alignment, Command, Element, Length, Point, Renderer, Size};
 use iced_native::image::Handle;
 
+use crate::image::convert::image_arc_to_handle;
 use crate::naming_convention::NamingConvention;
 use crate::persistence::{Persistence, PersistentKey, PersistentValue};
 use crate::status_bar::StatusBar;
@@ -51,6 +52,8 @@ pub enum ProgramDataMessage {
 enum PersistentData {
     SettingsID,
     FileBrowserID,
+    WorkspaceID,
+    Format,
     Theme,
     Layout,
     Output,
@@ -65,6 +68,8 @@ impl PersistentKey for PersistentData {
             PersistentData::Layout => "layout",
             PersistentData::Output => "output",
             PersistentData::Folder => "folder",
+            PersistentData::WorkspaceID => "workspace",
+            PersistentData::Format => "format",
         }
     }
 }
@@ -258,13 +263,21 @@ impl Drop for ProgramData {
 }
 
 pub struct WorkspaceData {
+    /// Source image to be used as a starting point
+    pub source: Arc<RgbaImage>,
+    /// Result of the latest rendering job
+    pub image_result: Handle,
+    /// Iced handle version of the source image used for previews
+    pub source_preview: Handle,
+
     /// Size of the render
     pub export_size: Size<u32>,
     /// Size of the preview widget
     pub view: f32,
     /// Name of the file to export the result to
     pub output: String,
-    pub format: ImageFormat,
+    /// Format the exported image will have, the value is private to ensure it will be properly cached
+    format: ImageFormat,
 
     /// Flag used to signal to the workspace and its modifiers what is the intended output to better adjust default values
     pub template: WorkspaceTemplate,
@@ -276,21 +289,47 @@ pub struct WorkspaceData {
     pub dirty: bool,
 }
 
-impl Default for WorkspaceData {
-    fn default() -> Self {
+impl WorkspaceData {
+    pub fn new(image: Arc<RgbaImage>, name: String, pdata: &ProgramData) -> Self {
         Self {
+            source_preview: image_arc_to_handle(&image),
+            image_result: image_arc_to_handle(&image),
+            source: image,
             export_size: Size {
                 width: 512,
                 height: 512,
             },
             view: 1.0,
-            output: Default::default(),
-            offset: Default::default(),
+            output: name,
+            offset: Point::ORIGIN,
             zoom: 1.0,
-            dirty: Default::default(),
-            format: ImageFormat::WebP,
+            dirty: true,
+            format: pdata
+                .cache
+                .get_copy(PersistentData::WorkspaceID, PersistentData::Format)
+                .and_then(|x| {
+                    if let PersistentValue::ImageFormat(x) = x {
+                        Some(x)
+                    } else {
+                        None
+                    }
+                })
+                .unwrap_or(ImageFormat::WebP),
             template: WorkspaceTemplate::None,
         }
+    }
+
+    /// Retrieves the format this workspace will export the image to
+    pub fn get_export_format(&self) -> ImageFormat {
+        self.format
+    }
+
+    /// Sets the format this workspace will export the image to
+    pub fn set_export_format(&mut self, format: ImageFormat, pdata: &mut ProgramData) {
+        self.format = format;
+        pdata
+            .cache
+            .set(PersistentData::WorkspaceID, PersistentData::Format, format);
     }
 }
 
