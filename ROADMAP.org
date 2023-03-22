@@ -5,7 +5,7 @@ This document contains ideas and goals for the project as well as description of
 * TODO Production
 This is a list of functionality what I want for the program to consider it ready to be used by regular people
 
-** UI/UX [7/7]
+** UI/UX [8/8]
 - [X] Frames need to have improved frame choice UI and implement categories
 - [X] Make offset be displayed at 0 instead of center of the image
 - [X] Export button should become red if any workspace points to a file that already exist
@@ -13,6 +13,7 @@ This is a list of functionality what I want for the program to consider it ready
 - [X] Move close button to top bar and have it choose which workspace to close
 - [X] Color Picker should allow direct value input
 - [X] Make tooltips have better visibility
+- [X] The Workspace tabs should be moved to the header line, or at least made it so they don't steal space from workspace buttons
 
 ** Bug fixes [3/4]
 - [X] Trackpad doesn't release when the button is released off its area.

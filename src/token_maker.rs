@@ -693,6 +693,7 @@ impl TokenMaker {
                     (0..self.workspaces.len()).fold(
                         row![text("Workspaces: ")]
                             .spacing(2)
+                            .padding(5)
                             .align_items(Alignment::Center),
                         |r, i| r.push(
                             button(text(i.to_string())).on_press(Message::WorkspaceSelect(i))

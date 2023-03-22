@@ -594,7 +594,7 @@ impl Workspace {
 
         container(top)
             .style(Style::Margins)
-            .height(Length::Fill)
+            .height(246)
             .into()
     }
 
