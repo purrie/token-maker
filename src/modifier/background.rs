@@ -312,7 +312,6 @@ impl<'a> Modifier<'a> for Background {
 
     fn main_view(
         &'a self,
-        _image: iced_native::image::Handle,
         pdata: &'a crate::data::ProgramData,
         _wdata: &'a crate::data::WorkspaceData,
     ) -> iced::Element<Self::Message, iced::Renderer> {

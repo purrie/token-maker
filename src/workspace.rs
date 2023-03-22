@@ -345,7 +345,6 @@ impl Workspace {
 
     /// Workspace UI
     pub fn view<'a>(&'a self, pdata: &'a ProgramData) -> Element<'a, WorkspaceMessage, Renderer> {
-        let img = self.get_output();
         let selected_mod = self.selected_modifier;
 
         // handles switching between regular image preview and controls, and whatever the modifier needs to render at the time
@@ -357,10 +356,11 @@ impl Workspace {
             }
         }) {
             container(
-                wid.main_view(img, pdata, &self.data)
+                wid.main_view(pdata, &self.data)
                     .map(move |x| WorkspaceMessage::ModifierMessage(selected_mod, x)),
             )
         } else {
+            let img = self.get_output();
             let img = Trackpad::new(img)
                 .with_drag(self.data.offset, |mods, butt, point, delta| match butt {
                     iced::mouse::Button::Left => Some(WorkspaceMessage::Slide(if mods.shift() {

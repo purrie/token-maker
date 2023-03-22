@@ -11,7 +11,6 @@ use crate::{
 use frame::{Frame, FrameMessage};
 use background::{Background, BackgroundMessage};
 use iced::{Command, Element, Renderer};
-use iced_native::image::Handle;
 
 /// Trait for modifiers to implement
 ///
@@ -46,11 +45,10 @@ pub trait Modifier<'a> {
     #[allow(unused_variables)]
     fn main_view(
         &'a self,
-        image: Handle,
         pdata: &'a ProgramData,
         wdata: &'a WorkspaceData,
     ) -> Element<Self::Message, Renderer> {
-        iced::widget::image(image).into()
+        iced::widget::image(wdata.image_result.clone()).into()
     }
 
     /// This function allows the modifier to signal that it wants to use the main preview area to draw custom UI
@@ -194,10 +192,10 @@ macro_rules! make_modifier {
                 }
             }
             /// UI for the main screen of the workspace for when the modifier needs larger space for specific tasks
-            pub fn main_view<'a>(&'a self, image: Handle, pdata: &'a ProgramData, wdata: &'a WorkspaceData) -> Element<ModifierMessage, Renderer> {
+            pub fn main_view<'a>(&'a self, pdata: &'a ProgramData, wdata: &'a WorkspaceData) -> Element<ModifierMessage, Renderer> {
                 match self {
                     $(
-                        ModifierBox::$md(x) => x.main_view(image, pdata, wdata).map(|x| x.into()),
+                        ModifierBox::$md(x) => x.main_view(pdata, wdata).map(|x| x.into()),
                     )+
                 }
             }

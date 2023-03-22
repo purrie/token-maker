@@ -219,7 +219,6 @@ impl<'a> Modifier<'a> for Frame {
 
     fn main_view(
         &self,
-        _image: iced_native::image::Handle,
         pdata: &ProgramData,
         _wdata: &WorkspaceData,
     ) -> iced::Element<Self::Message, iced::Renderer> {
