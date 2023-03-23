@@ -89,24 +89,14 @@ impl Workspace {
         name: String,
         source: Arc<RgbaImage>,
         pdata: &ProgramData,
-        template: WorkspaceTemplate,
     ) -> (Command<WorkspaceMessage>, Self) {
-        let mut data = WorkspaceData::new(source, name, pdata);
+        let data = WorkspaceData::new(source, name, pdata);
         let mut modifiers = Vec::new();
 
-        let command = match template {
+        let command = match pdata.get_workspace_template() {
             WorkspaceTemplate::None => Command::none(),
-            WorkspaceTemplate::Token => {
-                let (command, frame) = ModifierTag::Frame.make_box(pdata, &data);
-                modifiers.push(frame);
-                command.map(|x| WorkspaceMessage::ModifierMessage(0, x))
-            }
+            WorkspaceTemplate::Token |
             WorkspaceTemplate::Portrait => {
-                data.export_size = Size {
-                    width: data.source.width(),
-                    height: data.source.height(),
-                };
-                data.offset = Point { x: 0.0, y: 0.0 };
                 let (command, frame) = ModifierTag::Frame.make_box(pdata, &data);
                 modifiers.push(frame);
                 command.map(|x| WorkspaceMessage::ModifierMessage(0, x))
@@ -312,6 +302,8 @@ impl Workspace {
             }
             _ => {}
         }
+        self.width_carrier = self.data.export_size.width.to_string();
+        self.height_carrier = self.data.export_size.height.to_string();
         self.data.source_preview = image_arc_to_handle(&source);
         self.data.source = source;
         self.data.dirty = true;
@@ -565,7 +557,7 @@ impl Workspace {
 
     /// Constructs the path buffer pointing to the desired export path for the image
     fn construct_export_path(&self, pdata: &ProgramData) -> PathBuf {
-        let mut path = pdata.output.clone();
+        let mut path = pdata.get_output_folder().clone();
         // Constructing the final name for the export
         let name = self
             .data

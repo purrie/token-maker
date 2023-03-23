@@ -15,11 +15,13 @@ This is a list of functionality what I want for the program to consider it ready
 - [X] Make tooltips have better visibility
 - [X] The Workspace tabs should be moved to the header line, or at least made it so they don't steal space from workspace buttons
 
-** Bug fixes [4/4]
+** Bug fixes [5/6]
 - [X] Trackpad doesn't release when the button is released off its area.
 - [X] There's no way to reset trackpad zoom level
 - [X] Color Picker gets clipped away on the window edge
 - [X] Frame modifier frames need to be centered within buttons
+- [X] Workspaces with portrait template doesn't resize export on image swap
+- [ ] Project name incorrectly states removal of invalid characters
 
 ** Modifiers [2/6]
 - [ ] Ability to reorder modifiers
@@ -131,9 +133,13 @@ Just a way to quickly add and set up the workspace with basic defaults for speci
 
 This should be both a menu or set of buttons that will quickly add a workspace with selected template using the image loaded in the last workspace, as well as a set of choices in the regular new workspace screen to quickly set it up after loading the image.
 
+* UI/UX
+- [ ] Add feedback to program components in status line
+
 * File browser
 - Bookmarks for easier navigation
 - Image preview area to allow user to see the selected image file
+- Ability to make folders
 
 * Icons
 Button text should be replaced with icons when it makes sense. Which would primarily mean header buttons.

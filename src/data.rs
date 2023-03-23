@@ -25,18 +25,20 @@ pub struct ProgramData {
     pub file: Browser,
     /// Status line for giving feedback to the user
     pub status: StatusBar,
-    /// Intended export path, meant to be combined with individual names from workspaces
-    pub output: PathBuf,
-    /// Collection of frames loaded into the program
-    pub available_frames: Vec<FrameImage>,
-    /// Currently used color scheme for the UI
-    pub theme: Theme,
-    /// Determines which layout the workspaces should be displayed with
-    pub layout: Layout,
     /// Naming conventions to use in the program
     pub naming: NamingConvention,
     /// Values saved across sessions
     pub cache: Persistence,
+    /// Collection of frames loaded into the program
+    pub available_frames: Vec<FrameImage>,
+    /// Intended export path, meant to be combined with individual names from workspaces
+    output: PathBuf,
+    /// Currently used color scheme for the UI
+    theme: Theme,
+    /// Determines which layout the workspaces should be displayed with
+    layout: Layout,
+    /// Which template new workspaces should use
+    new_workspace_template: WorkspaceTemplate,
 }
 
 /// Messages for customizing the program settings
@@ -47,31 +49,6 @@ pub enum ProgramDataMessage {
     SetLayout(Layout),
     SetNamingConvention(WorkspaceTemplate, String),
     SetProjectName(String),
-}
-
-enum PersistentData {
-    SettingsID,
-    FileBrowserID,
-    WorkspaceID,
-    Format,
-    Theme,
-    Layout,
-    Output,
-    Folder,
-}
-impl PersistentKey for PersistentData {
-    fn get_id(&self) -> &'static str {
-        match self {
-            PersistentData::SettingsID => "settings",
-            PersistentData::FileBrowserID => "file-browser",
-            PersistentData::Theme => "theme",
-            PersistentData::Layout => "layout",
-            PersistentData::Output => "output",
-            PersistentData::Folder => "folder",
-            PersistentData::WorkspaceID => "workspace",
-            PersistentData::Format => "format",
-        }
-    }
 }
 
 impl ProgramData {
@@ -99,6 +76,20 @@ impl ProgramData {
         .into();
         let naming = NamingConvention::new(&cache);
 
+        let new_workspace_template = cache
+            .get_copy(
+                PersistentData::SettingsID,
+                PersistentData::WorkspaceTemplate,
+            )
+            .and_then(|x| {
+                if let PersistentValue::WorkspaceTemplate(x) = x {
+                    Some(x)
+                } else {
+                    None
+                }
+            })
+            .unwrap_or_default();
+
         Self {
             file,
             output,
@@ -108,6 +99,7 @@ impl ProgramData {
             layout,
             naming,
             cache,
+            new_workspace_template,
         }
     }
     /// Draws UI for customizing program settings
@@ -217,12 +209,7 @@ impl ProgramData {
                 Command::none()
             }
             ProgramDataMessage::SetLayout(l) => {
-                self.layout = l;
-                self.cache.set(
-                    PersistentData::SettingsID,
-                    PersistentData::Layout,
-                    self.layout,
-                );
+                self.set_layout(l);
                 Command::none()
             }
             ProgramDataMessage::SetNamingConvention(template, text) => {
@@ -243,21 +230,60 @@ impl ProgramData {
             }
         }
     }
+
+    pub fn get_workspace_template(&self) -> WorkspaceTemplate {
+        self.new_workspace_template
+    }
+
+    pub fn set_workspace_template(&mut self, template: WorkspaceTemplate) {
+        self.cache.set(
+            PersistentData::SettingsID,
+            PersistentData::WorkspaceTemplate,
+            PersistentValue::WorkspaceTemplate(template),
+        );
+        self.new_workspace_template = template;
+    }
+
+    pub fn get_output_folder(&self) -> &PathBuf {
+        &self.output
+    }
+
+    pub fn set_output_folder(&mut self, output: PathBuf) {
+        self.output = output;
+        self.cache.set(
+            PersistentData::SettingsID,
+            PersistentData::Output,
+            self.output.clone(),
+        );
+    }
+
+    pub fn get_theme(&self) -> Theme {
+        self.theme
+    }
+
+    pub fn get_layout(&self) -> Layout {
+        self.layout
+    }
+
+    pub fn set_layout(&mut self, layout: Layout) {
+        self.layout = layout;
+        self.cache.set(
+            PersistentData::SettingsID,
+            PersistentData::Layout,
+            self.layout,
+        );
+    }
 }
 
 impl Drop for ProgramData {
     fn drop(&mut self) {
-        // saving cache for browser, we do it here to not pollute the widget's module so it will be easier to extract it in case it's something worth using in another project
+        // TODO this should probably go somewhere else to clear out usage of Drop
+        // This will probably get resolved when I finally decide to recode this part into a widget
         let path = self.file.get_path().to_string_lossy().to_string();
         self.cache.set(
             PersistentData::FileBrowserID,
             PersistentData::Folder,
             PersistentValue::String(path),
-        );
-        self.cache.set(
-            PersistentData::SettingsID,
-            PersistentData::Output,
-            self.output.clone(),
         );
     }
 }
@@ -292,12 +318,15 @@ pub struct WorkspaceData {
 impl WorkspaceData {
     pub fn new(image: Arc<RgbaImage>, name: String, pdata: &ProgramData) -> Self {
         Self {
-            source_preview: image_arc_to_handle(&image),
-            image_result: image_arc_to_handle(&image),
-            source: image,
-            export_size: Size {
-                width: 512,
-                height: 512,
+            export_size: match pdata.get_workspace_template() {
+                WorkspaceTemplate::Portrait => Size {
+                    width: image.width(),
+                    height: image.height(),
+                },
+                _ => Size {
+                    width: 512,
+                    height: 512,
+                },
             },
             view: 1.0,
             output: name,
@@ -315,7 +344,10 @@ impl WorkspaceData {
                     }
                 })
                 .unwrap_or(ImageFormat::WebP),
-            template: WorkspaceTemplate::None,
+            template: pdata.get_workspace_template(),
+            source_preview: image_arc_to_handle(&image),
+            image_result: image_arc_to_handle(&image),
+            source: image,
         }
     }
 
@@ -664,4 +696,32 @@ pub async fn load_frames() -> std::io::Result<Vec<FrameImage>> {
 
     res.sort_by(|a, b| a.category.cmp(&b.category).then(a.name.cmp(&b.name)));
     Ok(res)
+}
+
+enum PersistentData {
+    SettingsID,
+    FileBrowserID,
+    WorkspaceID,
+    Format,
+    Theme,
+    Layout,
+    Output,
+    Folder,
+    WorkspaceTemplate,
+}
+
+impl PersistentKey for PersistentData {
+    fn get_id(&self) -> &'static str {
+        match self {
+            PersistentData::SettingsID => "settings",
+            PersistentData::FileBrowserID => "file-browser",
+            PersistentData::Theme => "theme",
+            PersistentData::Layout => "layout",
+            PersistentData::Output => "output",
+            PersistentData::Folder => "folder",
+            PersistentData::WorkspaceID => "workspace",
+            PersistentData::Format => "format",
+            PersistentData::WorkspaceTemplate => "template",
+        }
+    }
 }

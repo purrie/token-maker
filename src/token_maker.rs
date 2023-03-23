@@ -12,8 +12,7 @@ use iced::{
 
 use crate::data::{load_frames, FrameImage, ProgramData, ProgramDataMessage};
 use crate::frame_maker::{FrameMaker, FrameMakerMessage};
-use crate::image::{RgbaImage, image_filter, download_image};
-use crate::persistence::{PersistentKey, PersistentValue};
+use crate::image::{download_image, image_filter, RgbaImage};
 use crate::style::{Layout, Style};
 use crate::widgets::{BrowserOperation, BrowsingResult, Target};
 use crate::workspace::{Workspace, WorkspaceMessage, WorkspaceTemplate};
@@ -25,7 +24,6 @@ pub struct TokenMaker {
     workspaces: Vec<Workspace>,
     frame_maker: FrameMaker,
 
-    new_workspace_template: WorkspaceTemplate,
     download_in_progress: bool,
 }
 
@@ -123,20 +121,6 @@ impl Application for TokenMaker {
             {
                 let data = ProgramData::new();
                 let s = Self {
-                    new_workspace_template: data
-                        .cache
-                        .get_copy(
-                            PersistentData::TokenMakerID,
-                            PersistentData::DefaultTemplate,
-                        )
-                        .and_then(|x| {
-                            if let PersistentValue::WorkspaceTemplate(x) = x {
-                                Some(x)
-                            } else {
-                                None
-                            }
-                        })
-                        .unwrap_or_default(),
                     data,
                     operation: Mode::CreateWorkspace,
                     workspaces: Vec::new(),
@@ -160,7 +144,7 @@ impl Application for TokenMaker {
     }
 
     fn theme(&self) -> Self::Theme {
-        self.data.theme.into()
+        self.data.get_theme().into()
     }
     fn title(&self) -> String {
         String::from("Token Maker")
@@ -239,8 +223,10 @@ impl Application for TokenMaker {
             Message::LookForOutputFolder => {
                 self.operation = Mode::FileBrowser(BrowsingFor::Output);
                 self.data.file.set_target(Target::Directory);
-                if self.data.output.exists() {
-                    self.data.file.set_path(&self.data.output);
+                if self.data.get_output_folder().exists() {
+                    self.data
+                        .file
+                        .set_path(self.data.get_output_folder().clone());
                 }
                 self.data.file.refresh_path().unwrap();
                 Command::none()
@@ -304,7 +290,7 @@ impl Application for TokenMaker {
                                 }
 
                                 BrowsingFor::Output => {
-                                    self.data.output = path;
+                                    self.data.set_output_folder(path);
                                     self.main_screen();
                                     Command::none()
                                 }
@@ -385,7 +371,7 @@ impl Application for TokenMaker {
             }
 
             Message::WorkspaceSelect(i) => {
-                self.data.layout = Layout::Stacking(i);
+                self.data.set_layout(Layout::Stacking(i));
                 Command::none()
             }
 
@@ -400,12 +386,7 @@ impl Application for TokenMaker {
             }
 
             Message::WorkspaceTemplate(t) => {
-                self.new_workspace_template = t;
-                self.data.cache.set(
-                    PersistentData::TokenMakerID,
-                    PersistentData::DefaultTemplate,
-                    self.new_workspace_template,
-                );
+                self.data.set_workspace_template(t);
                 Command::none()
             }
 
@@ -513,15 +494,14 @@ impl TokenMaker {
         if i == 0 && self.data.naming.project_name.len() == 0 {
             self.data.naming.project_name = name;
         }
-        let name = self.data.naming.get(&self.new_workspace_template);
+        let name = self.data.naming.get(&self.data.get_workspace_template());
 
-        let (command, new_workspace) =
-            Workspace::new(name, image, &self.data, self.new_workspace_template);
+        let (command, new_workspace) = Workspace::new(name, image, &self.data);
         let command = command.map(move |x| Message::Workspace(i, x));
 
         // Switching to a new tab if the layout is stacking
-        if matches!(self.data.layout, Layout::Stacking(_)) {
-            self.data.layout = Layout::Stacking(i)
+        if matches!(self.data.get_layout(), Layout::Stacking(_)) {
+            self.data.set_layout(Layout::Stacking(i))
         }
         self.workspaces.push(new_workspace);
         command
@@ -529,7 +509,7 @@ impl TokenMaker {
 
     /// Checks if it is save to save images
     fn can_save(&self) -> Result<(), String> {
-        if self.data.output.exists() == false {
+        if self.data.get_output_folder().exists() == false {
             return Err(String::from("Export folder not set"));
         }
         if self.workspaces.len() == 0 {
@@ -591,7 +571,8 @@ impl TokenMaker {
                         button("Can't save yet"),
                         "Click on the image to create the mask first",
                         tooltip::Position::Left
-                    ).style(Style::Frame)]
+                    )
+                    .style(Style::Frame)]
                 }
             }
             Mode::Settings => {
@@ -617,9 +598,10 @@ impl TokenMaker {
                 }),
                 tooltip(
                     button("Set Export Path").on_press(Message::LookForOutputFolder),
-                    format!("Path: {}", self.data.output.to_string_lossy()),
+                    format!("Path: {}", self.data.get_output_folder().to_string_lossy()),
                     tooltip::Position::Bottom
-                ).style(Style::Frame),
+                )
+                .style(Style::Frame),
                 if let Err(e) = self.can_save() {
                     tooltip(button("Export"), e, tooltip::Position::Bottom).style(Style::Frame)
                 } else {
@@ -634,13 +616,15 @@ impl TokenMaker {
                                 .style(Style::Danger.into()),
                             "One or more workspaces will override existing file",
                             tooltip::Position::Bottom,
-                        ).style(Style::Frame)
+                        )
+                        .style(Style::Frame)
                     } else {
                         tooltip(
                             button("Export").on_press(Message::Export),
                             "Export to selected folder",
                             tooltip::Position::Bottom,
-                        ).style(Style::Frame)
+                        )
+                        .style(Style::Frame)
                     }
                 },
             ]
@@ -676,7 +660,7 @@ impl TokenMaker {
     /// Constructs UI for displaying all workspaces
     fn workspace_view(&self) -> Element<Message, Renderer> {
         // Different drawings for different layouts
-        match self.data.layout {
+        match self.data.get_layout() {
             Layout::Parallel => {
                 container(Row::with_children(self.workspaces.iter().enumerate().fold(
                     Vec::new(),
@@ -801,9 +785,12 @@ impl TokenMaker {
                 .align_items(Alignment::Center),
             |r, wt| {
                 let wt = *wt;
-                let opt = radio(wt.to_string(), wt, Some(self.new_workspace_template), |x| {
-                    Message::WorkspaceTemplate(x)
-                });
+                let opt = radio(
+                    wt.to_string(),
+                    wt,
+                    Some(self.data.get_workspace_template()),
+                    |x| Message::WorkspaceTemplate(x),
+                );
                 r.push(opt)
             },
         );
@@ -879,18 +866,3 @@ impl TokenMaker {
             .into()
     }
 }
-
-enum PersistentData {
-    TokenMakerID,
-    DefaultTemplate,
-}
-
-impl PersistentKey for PersistentData {
-    fn get_id(&self) -> &'static str {
-        match self {
-            PersistentData::TokenMakerID => "token-maker",
-            PersistentData::DefaultTemplate => "default-template",
-        }
-    }
-}
-
