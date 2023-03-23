@@ -215,7 +215,7 @@ impl ProgramData {
             ProgramDataMessage::SetNamingConvention(template, text) => {
                 if has_invalid_characters(&text) {
                     self.status
-                        .warning("Removed invalid characters from the name");
+                        .warning("Removed invalid characters from the naming convention");
                 }
                 self.naming.set(template, text, &mut self.cache);
                 Command::none()
@@ -223,7 +223,7 @@ impl ProgramData {
             ProgramDataMessage::SetProjectName(n) => {
                 if has_invalid_characters(&n) {
                     self.status
-                        .warning("Removed invalid characters from the name");
+                        .warning("Removed invalid characters from project name");
                 }
                 self.naming.project_name = sanitize_file_name(n);
                 Command::none()
@@ -469,9 +469,10 @@ pub fn sanitize_file_name(name: String) -> String {
         .collect()
 }
 
+/// Tests if the string has any characters that is not safe to use in file name or expected by the program
 pub fn has_invalid_characters(name: &str) -> bool {
     name.chars().any(|x| {
-        x.is_whitespace() == false
+        x.is_alphanumeric() == false
             && x != '-'
             && x != '_'
             && x != '$'

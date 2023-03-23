@@ -166,7 +166,7 @@ impl FrameMaker {
                 if has_invalid_characters(&n) {
                     pdata
                         .status
-                        .warning("Removed invalid characters from the name")
+                        .warning("Removed invalid characters from frame name")
                 }
                 self.name = sanitize_file_name(n);
                 Command::none()
@@ -175,7 +175,7 @@ impl FrameMaker {
                 if has_invalid_characters(&n) {
                     pdata
                         .status
-                        .warning("Removed invalid characters from the name")
+                        .warning("Removed invalid characters from frame category")
                 }
                 self.category = sanitize_file_name_allow_path(n);
                 Command::none()

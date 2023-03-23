@@ -126,7 +126,7 @@ impl Workspace {
                 if has_invalid_characters(&s) {
                     pdata
                         .status
-                        .warning("Removed invalid characters from the name")
+                        .warning("Removed invalid characters from workspace name")
                 }
                 self.data.output = sanitize_file_name(s);
                 self.update_modifiers(pdata)
