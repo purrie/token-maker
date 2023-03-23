@@ -2,6 +2,7 @@ use std::sync::Arc;
 use std::time::Duration;
 use std::{fmt::Display, path::PathBuf};
 
+use iced::widget::radio;
 use iced::{
     widget::{
         button, column as col, container, horizontal_space, image::Handle, row, scrollable, text,
@@ -63,6 +64,10 @@ pub enum WorkspaceMessage {
     ModifierMessage(usize, ModifierMessage),
     /// Changes which modifier is selected
     SelectModifier(usize),
+    /// Moves modifier at index forward in the modifier stack
+    MoveModifierForward(usize),
+    /// Moves modifier at index backward, earlier in the modifier stack
+    MoveModifierBackward(usize),
     /// Prompt new render job
     Render,
     /// Rendering has completed with a result
@@ -95,8 +100,7 @@ impl Workspace {
 
         let command = match pdata.get_workspace_template() {
             WorkspaceTemplate::None => Command::none(),
-            WorkspaceTemplate::Token |
-            WorkspaceTemplate::Portrait => {
+            WorkspaceTemplate::Token | WorkspaceTemplate::Portrait => {
                 let (command, frame) = ModifierTag::Frame.make_box(pdata, &data);
                 modifiers.push(frame);
                 command.map(|x| WorkspaceMessage::ModifierMessage(0, x))
@@ -205,6 +209,30 @@ impl Workspace {
             }
             WorkspaceMessage::SelectModifier(index) => {
                 self.selected_modifier = index;
+                Command::none()
+            }
+            WorkspaceMessage::MoveModifierBackward(index) => {
+                if index > 0 {
+                    if index == self.selected_modifier {
+                        self.selected_modifier -= 1;
+                    } else if index - 1 == self.selected_modifier {
+                        self.selected_modifier += 1;
+                    }
+                    self.modifiers.swap(index, index - 1);
+                    self.data.dirty = true;
+                }
+                Command::none()
+            }
+            WorkspaceMessage::MoveModifierForward(index) => {
+                if index < self.modifiers.len() - 1 {
+                    if index == self.selected_modifier {
+                        self.selected_modifier += 1;
+                    } else if index + 1 == self.selected_modifier {
+                        self.selected_modifier -= 1;
+                    }
+                    self.modifiers.swap(index, index + 1);
+                    self.data.dirty = true;
+                }
                 Command::none()
             }
             WorkspaceMessage::SetFormat(format) => {
@@ -410,9 +438,11 @@ impl Workspace {
                 text_input("Output name", &self.data.output, |x| {
                     WorkspaceMessage::OutputNameChange(x)
                 }),
-                PickList::new(&ImageFormat::EXPORTABLE[..], Some(self.data.get_export_format()), |x| {
-                    WorkspaceMessage::SetFormat(x)
-                }),
+                PickList::new(
+                    &ImageFormat::EXPORTABLE[..],
+                    Some(self.data.get_export_format()),
+                    |x| { WorkspaceMessage::SetFormat(x) }
+                ),
             ]
             .height(Length::Shrink)
             .align_items(Alignment::Center),
@@ -498,12 +528,30 @@ impl Workspace {
                 .height(Length::Shrink)
                 .width(Length::Shrink),
             |col, (i, m)| {
-                let r = row![
-                    button("X").on_press(WorkspaceMessage::RemoveModifier(i)),
-                    button(m.label()).on_press(WorkspaceMessage::SelectModifier(i)),
-                    // TODO implement ability to reorder modifiers
+                let mut r = row![
+                    button("X")
+                        .on_press(WorkspaceMessage::RemoveModifier(i))
+                        .style(Style::Danger.into()),
+                    horizontal_space(2),
+                    if i > 0 {
+                        button("^").on_press(WorkspaceMessage::MoveModifierBackward(i))
+                    } else {
+                        button("^")
+                    },
+                    if i < self.modifiers.len() - 1 {
+                        button("v").on_press(WorkspaceMessage::MoveModifierForward(i))
+                    } else {
+                        button("v")
+                    }
                 ]
                 .spacing(2);
+                r = row![
+                    r.width(64),
+                    radio(m.label(), i, Some(self.selected_modifier), |x| {
+                        WorkspaceMessage::SelectModifier(x)
+                    })
+                ]
+                .spacing(4);
                 col.push(r)
             },
         );
@@ -649,4 +697,3 @@ impl Display for WorkspaceTemplate {
         )
     }
 }
-
