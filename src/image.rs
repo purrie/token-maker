@@ -27,6 +27,20 @@ pub enum ImageOperation {
     /// This operation expects the overlay is the same resolution as the base image
     Mask { mask: Arc<GrayscaleImage> },
 
+    /// Performs a resampling on the mask to match the source image and then lays out the mask on the image
+    MaskWithOffset {
+        mask: Arc<GrayscaleImage>,
+        center: Point,
+        size: f32,
+    },
+
+    /// Masks color from the image, turning matching pixels within the range transparent
+    MaskColor {
+        color: Color,
+        range: f32,
+        soft_border: f32,
+    },
+
     /// Overlays the image on the rendered image using alpha channel blending
     ///
     /// This operation expects the overlay is the same resolution as the base image
@@ -39,9 +53,6 @@ pub enum ImageOperation {
     ///
     /// This operation expects the both images to be the same resolution
     BackgroundImage(Arc<RgbaImage>),
-
-    /// Masks color from the image, turning matching pixels within the range transparent
-    MaskColor{ color: Color, range: f32, soft_border: f32 }
 }
 
 impl ImageOperation {
@@ -64,10 +75,17 @@ impl ImageOperation {
                 panic!("Tried to call Begin operation as not a first operation!")
             }
             ImageOperation::Mask { mask } => mask_image(image, mask.as_ref()),
+            ImageOperation::MaskWithOffset { mask, center, size } => {
+                mask_image_with_offset(image, mask, center, size).await
+            }
+            ImageOperation::MaskColor {
+                color,
+                range,
+                soft_border,
+            } => mask_color(image, color, range, soft_border),
             ImageOperation::Blend { overlay } => blend_images(image, overlay.as_ref()),
             ImageOperation::BackgroundColor(color) => underlay_color(image, color),
             ImageOperation::BackgroundImage(under) => underlay_image(image, under),
-            ImageOperation::MaskColor { color, range, soft_border } => mask_color(image, color, range, soft_border),
         }
     }
 }

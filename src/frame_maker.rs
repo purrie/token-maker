@@ -10,7 +10,7 @@ use crate::{
         has_invalid_characters, sanitize_file_name, sanitize_file_name_allow_path, FrameImage,
         ProgramData,
     },
-    image::{convert::image_to_handle, GrayscaleImage, RgbaImage},
+    image::{convert::image_to_handle, operations::flood_fill_mask, GrayscaleImage, RgbaImage},
     style::Style,
     widgets::PixelSampler,
 };
@@ -186,64 +186,26 @@ impl FrameMaker {
 
 /// Creates a mask out of the image by flood spreading the mask pixel by pixel from the source position using alpha channel of the image.
 async fn create_mask(image: RgbaImage, flood_source: Vector<u32>) -> (Handle, GrayscaleImage) {
-    let size = (image.width() * image.height()) as usize;
-    let (width, height) = (image.width() as usize, image.height() as usize);
-    let pixels = image.as_raw();
-    let mut mask = Vec::with_capacity(size);
-    mask.resize(size, 0);
-    let mut stack = Vec::new();
+    let mask = flood_fill_mask(&image, flood_source, 0, |s| {
+        if s[3] < 255 {
+            Some(255)
+        } else {
+            None
+        }
+    });
+
+    let width = image.width() as usize;
+
     // calculates linear index of a pixel
     macro_rules! index {
         ($x:expr, $y:expr) => {
             width * $y + $x
         };
     }
-    // sets mask pixel to white on provided coordinates
-    macro_rules! mark_point {
-        ($x:expr, $y:expr) => {
-            mask[index!($x, $y)] = 255;
-        };
-    }
-    // adds point to be colored white on mask if the pixel on provided coordinates is not fully opaque and haven't been marked before
-    macro_rules! add_point {
-        ($x:expr, $y:expr) => {
-            let i = index!($x, $y);
-            if pixels[i * 4 + 3] < 255 && mask[i] == 0 {
-                stack.push(($x, $y));
-            }
-        };
-    }
-    // performs range checks and adds pixels on each side of provided coordinate to be processed according to `add_point` rules
-    macro_rules! add_around {
-        ($x:expr, $y:expr) => {
-            if $x > 0 {
-                add_point!($x - 1, $y);
-            }
-            if $x < width - 1 {
-                add_point!($x + 1, $y);
-            }
-            if $y > 0 {
-                add_point!($x, $y - 1);
-            }
-            if $y < height - 1 {
-                add_point!($x, $y + 1);
-            }
-        };
-    }
-    let start = Vector {
-        x: flood_source.x as usize,
-        y: flood_source.y as usize,
-    };
-    mark_point!(start.x, start.y);
-    add_around!(start.x, start.y);
-
-    while let Some((x, y)) = stack.pop() {
-        mark_point!(x, y);
-        add_around!(x, y);
-    }
 
     // creates a grid pattern and overlays the frame image onto it
     let masked_area = RgbaImage::from_fn(image.width(), image.height(), |x, y| {
+        let mask = mask.as_raw();
         let a = mask[index!(x as usize, y as usize)];
         let pixel = *image.get_pixel(x, y);
         if a == 0 {
@@ -263,7 +225,6 @@ async fn create_mask(image: RgbaImage, flood_source: Vector<u32>) -> (Handle, Gr
         grid.blend(&pixel);
         grid
     });
-    let mask = GrayscaleImage::from_raw(image.width(), image.height(), mask).unwrap();
     let handle = image_to_handle(masked_area);
     (handle, mask)
 }

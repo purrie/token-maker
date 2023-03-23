@@ -23,12 +23,12 @@ This is a list of functionality what I want for the program to consider it ready
 - [X] Workspaces with portrait template doesn't resize export on image swap
 - [X] Project name incorrectly states removal of invalid characters
 
-** Modifiers [5/6]
+** Modifiers [6/6]
 - [X] Ability to reorder modifiers
 - [X] Custom widget or style for modifier list items
 - [X] There needs to be clear distinction as to which modifier is currently selected
 - [X] Auto-alpha / greenscreen modifier
-- [ ] Flood mask. It should take a location and generate a mask from it, similarly to how frame maker generates a mask.
+- [X] Flood mask. It should take a location and generate a mask from it, similarly to how frame maker generates a mask.
 - [X] Backgrounds modifier
 
 ** Manual

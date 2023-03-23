@@ -1,9 +1,9 @@
 use std::sync::Arc;
 
-use iced::{Color, Point, Size};
-use image::{GenericImageView, ImageBuffer, Pixel, Rgba};
+use iced::{Color, Point, Size, Vector};
+use image::{GenericImageView, ImageBuffer, Pixel, Primitive, Rgba};
 
-use super::{GrayscaleImage, RgbaImage, convert::pixel_to_color};
+use super::{convert::pixel_to_color, GrayscaleImage, RgbaImage};
 
 /// Resizes the image, clipping out the image parts or adding transparent pixels to the borders
 ///
@@ -14,9 +14,7 @@ use super::{GrayscaleImage, RgbaImage, convert::pixel_to_color};
 /// `size`         - any value other than 1.0 will scale up or down the source image in comparison to the output, together with `offset` this allows to zoom in on specific part of the image
 ///
 /// # Panics
-/// The function will panic if an image format with more than 4 channels per pixel is used and supplied values will try to sample outside of the image bounds
-///
-/// Panic will also happen if supplied image  or requested resolution has width or height of 0 pixels.
+/// Panic will also happen if supplied image or requested resolution has width or height of 0 pixels.
 pub async fn resample_image<T, P>(
     image: Arc<T>,
     resolution: Size<u32>,
@@ -24,7 +22,7 @@ pub async fn resample_image<T, P>(
     size: f32,
 ) -> ImageBuffer<P, Vec<u8>>
 where
-    P: Pixel<Subpixel = u8>,
+    P: Pixel<Subpixel = u8> + Send + 'static,
     T: GenericImageView<Pixel = P> + Sync + Send + 'static,
 {
     let aspect = {
@@ -54,12 +52,12 @@ where
     for i in 0..workers {
         let th = tokio::spawn({
             let image = image.clone();
+            let empty = image.get_pixel(0, 0).map(|_| 0);
             async move {
                 let start = worker_size * i;
                 let end = (start + worker_size).min(resolution.height);
                 let mut res: Vec<u8> =
                     Vec::with_capacity(((end - start) * resolution.width) as usize);
-                let empty = [0; 4];
                 for y in start..end {
                     for x in 0..resolution.width {
                         let tx = {
@@ -84,7 +82,7 @@ where
                         {
                             image.get_pixel(tx as u32, ty as u32)
                         } else {
-                            *P::from_slice(&empty)
+                            empty
                         };
                         for p in r.channels() {
                             res.push(*p);
@@ -126,6 +124,25 @@ pub fn mask_image(mut image: RgbaImage, mask: &GrayscaleImage) -> RgbaImage {
             }
         });
     image
+}
+
+pub async fn mask_image_with_offset(
+    image: RgbaImage,
+    mask: Arc<GrayscaleImage>,
+    center: Point,
+    size: f32,
+) -> RgbaImage {
+    let mask = resample_image(
+        mask,
+        Size {
+            width: image.width(),
+            height: image.height(),
+        },
+        center,
+        size,
+    )
+    .await;
+    mask_image(image, &mask)
 }
 
 /// Overlays foreground on top of background respecting alpha values of the image
@@ -192,7 +209,7 @@ pub fn mask_color(mut image: RgbaImage, color: Color, range: f32, blending: f32)
         let b = (c.b - color.b).abs().powi(2);
         let vector_length = r + g + b;
 
-        if vector_length <= range  {
+        if vector_length <= range {
             p[3] = 0;
         } else if vector_length < soft_border_range {
             let comb = vector_length - range;
@@ -202,4 +219,85 @@ pub fn mask_color(mut image: RgbaImage, color: Color, range: f32, blending: f32)
     });
 
     image
+}
+
+/// Creates a grayscale image by flood filling it pixel by pixel
+///
+/// # Parameters
+/// `image` - The image to use as basis for flooding
+/// `starting_point` - the point from which start the flooding
+/// `starting_value` - the value the mask will be prefilled with
+/// `predicate` - function that will determine boundaries of flood and value for the mask
+///     The predicate is given the pixel from the `image`, the length of the slice is equal to image channel count
+///     The predicate returns value the mask will take, or None, which will stop spread from that point
+pub fn flood_fill_mask<F, P, S>(
+    image: &ImageBuffer<P, Vec<S>>,
+    starting_point: Vector<u32>,
+    starting_value: u8,
+    predicate: F,
+) -> GrayscaleImage
+where
+    F: Fn(&[S]) -> Option<u8>,
+    P: Pixel<Subpixel = S>,
+    S: Primitive,
+{
+    let size = (image.width() * image.height()) as usize;
+    let (width, height) = (image.width() as usize, image.height() as usize);
+    let pixels = image.as_raw();
+    let mut mask = Vec::with_capacity(size);
+    mask.resize(size, starting_value);
+    let mut stack = Vec::new();
+
+    // calculates linear index of a pixel
+    macro_rules! index {
+        ($x:expr, $y:expr) => {
+            width * $y + $x
+        };
+    }
+
+    // Tests the point according to predicate and assigns the value returned
+    macro_rules! mark_point {
+        ($x:expr, $y:expr) => {
+            let i = index!($x, $y);
+            if mask[i] == starting_value {
+                let ci = i * P::CHANNEL_COUNT as usize;
+                let cie = ci + P::CHANNEL_COUNT as usize;
+                if let Some(v) = predicate(&pixels[ci..cie]) {
+                    debug_assert_ne!(
+                        v,
+                        starting_value,
+                        "Error: Flood Fill Mask predicate cannot return the same value as starting mask value, otherwise it can lead to cyclic infinite loop");
+                    mask[i] = v;
+                    stack.push(($x, $y));
+                }
+            }
+        };
+    }
+
+    // performs range checks and adds pixels on each side of provided coordinate to be processed according to `add_point` rules
+    macro_rules! add_around {
+        ($x:expr, $y:expr) => {
+            if $x > 0 {
+                mark_point!($x - 1, $y);
+            }
+            if $x < width - 1 {
+                mark_point!($x + 1, $y);
+            }
+            if $y > 0 {
+                mark_point!($x, $y - 1);
+            }
+            if $y < height - 1 {
+                mark_point!($x, $y + 1);
+            }
+        };
+    }
+
+    mark_point!(starting_point.x as usize, starting_point.y as usize);
+
+    while let Some((x, y)) = stack.pop() {
+        add_around!(x, y);
+    }
+
+    let mask = ImageBuffer::from_raw(image.width(), image.height(), mask).unwrap();
+    mask
 }
