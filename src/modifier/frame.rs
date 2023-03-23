@@ -207,10 +207,12 @@ impl<'a> Modifier<'a> for Frame {
         Some(
             col![
                 button("Select Frame").on_press(FrameMessage::OpenFrameSelect),
-                text("Tint: "),
-                ColorPicker::new(self.tint, |c| FrameMessage::SetTint(c))
-                    .width(Length::Fixed(32.0))
-                    .height(Length::Fixed(32.0)),
+                row![
+                    text("Tint: "),
+                    ColorPicker::new(self.tint, |c| FrameMessage::SetTint(c))
+                        .width(Length::Fixed(32.0))
+                        .height(Length::Fixed(32.0)),
+                ].spacing(4).align_items(Alignment::Center),
             ]
             .spacing(10)
             .into(),
