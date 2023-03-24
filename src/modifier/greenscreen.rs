@@ -1,10 +1,11 @@
 use iced::{
-    widget::{button, column as col, horizontal_space, row, slider, text},
+    widget::{button, column as col, horizontal_space, row, slider, text, tooltip},
     Color, Command, Length, Vector,
 };
 
 use crate::{
     image::ImageOperation,
+    style::Style,
     widgets::{ColorPicker, PixelSampler},
 };
 
@@ -64,6 +65,10 @@ impl<'a> Modifier<'a> for Greenscreen {
 
     fn label() -> &'static str {
         "Greenscreen"
+    }
+
+    fn tooltip() -> &'static str {
+        "Hides parts of the image that match selected color"
     }
 
     fn is_dirty(&self) -> bool {
@@ -148,17 +153,35 @@ impl<'a> Modifier<'a> for Greenscreen {
         })
         .step(0.001);
 
+        let label_threshold = text("Threshold: ").width(Length::Fill);
+        let label_soft_edge = text("Soft Edge: ").width(Length::Fill);
+
+        let label_threshold = tooltip(
+            label_threshold,
+            "Determines how close the color has to be to the selected color to count as part of the mask.",
+            tooltip::Position::Bottom
+        ).style(Style::Frame);
+
+        let label_soft_edge = tooltip(
+            label_soft_edge,
+            "Allows the mask to extend further than the threshold, softening up the mask edges.",
+            tooltip::Position::Bottom,
+        )
+        .style(Style::Frame);
+
         Some(
             col![
-                row![butt, picker].spacing(4).align_items(iced::Alignment::Center),
+                row![butt, picker]
+                    .spacing(4)
+                    .align_items(iced::Alignment::Center),
                 row![
-                    text("Threshold: ").width(Length::Fill),
+                    label_threshold,
                     slider_range.width(Length::FillPortion(4)),
                     horizontal_space(Length::FillPortion(2))
                 ]
                 .spacing(4),
                 row![
-                    text("Soft Edge: ").width(Length::Fill),
+                    label_soft_edge,
                     slider_blend.width(Length::FillPortion(4)),
                     horizontal_space(Length::FillPortion(2))
                 ]

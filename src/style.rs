@@ -35,6 +35,7 @@ pub enum Style {
     Margins,
     Danger,
     Action,
+    Highlight,
 }
 
 impl widget::container::StyleSheet for Style {
@@ -107,6 +108,7 @@ impl widget::container::StyleSheet for Style {
                     border_color: color,
                 }
             }
+            Style::Highlight => todo!(),
         }
     }
 }
@@ -134,7 +136,7 @@ impl widget::button::StyleSheet for Style {
                     shadow_offset: Vector { x: 2.0, y: 2.0 },
                 }
             }
-            Style::Danger | Style::Action | Style::Header | Style::Margins => unreachable!(), // unused?
+            Style::Highlight | Style::Danger | Style::Action | Style::Header | Style::Margins => unreachable!(), // unused?
         }
     }
 
@@ -158,7 +160,7 @@ impl widget::button::StyleSheet for Style {
                     shadow_offset: Vector { x: 2.0, y: 2.0 },
                 }
             }
-            Style::Danger | Style::Action | Style::Header | Style::Margins => unreachable!(), // unused?
+            Style::Highlight | Style::Danger | Style::Action | Style::Header | Style::Margins => unreachable!(), // unused?
         }
     }
 
@@ -182,7 +184,7 @@ impl widget::button::StyleSheet for Style {
                     shadow_offset: Vector { x: -2.0, y: -2.0 },
                 }
             }
-            Style::Danger | Style::Action | Style::Header | Style::Margins => unreachable!(), // unused?
+            Style::Highlight | Style::Danger | Style::Action | Style::Header | Style::Margins => unreachable!(), // unused?
         }
     }
 
@@ -206,7 +208,7 @@ impl widget::button::StyleSheet for Style {
                     shadow_offset: Vector { x: 1.0, y: 1.0 },
                 }
             }
-            Style::Danger | Style::Action | Style::Header | Style::Margins => unreachable!(), // unused?
+            Style::Highlight | Style::Danger | Style::Action | Style::Header | Style::Margins => unreachable!(), // unused?
         }
     }
 }
@@ -227,6 +229,7 @@ impl From<Style> for theme::Button {
             Style::Margins => Button::Secondary,
             Style::Danger => Button::Destructive,
             Style::Action => Button::Primary,
+            Style::Highlight => Button::Positive,
         }
     }
 }

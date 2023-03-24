@@ -1,6 +1,7 @@
 use std::collections::HashSet;
 use std::sync::Arc;
 
+use iced::widget::tooltip::Position;
 use iced::widget::{
     button, column as col, container, horizontal_space, image as picture, radio, row, text,
     text_input, tooltip, vertical_space, Row,
@@ -541,7 +542,12 @@ impl TokenMaker {
                 text("Workspace: "),
                 button("Add").on_press(Message::DisplayWorkspaceCreation),
                 button("Close").on_press(Message::DisplayCloseWorkspace),
-                button("Replace Image").on_press(Message::DisplaySourceImageReplacement),
+                tooltip(
+                    button("Replace Image").on_press(Message::DisplaySourceImageReplacement),
+                    "Replace images in all open workspaces",
+                    Position::Bottom
+                )
+                .style(Style::Frame)
             ]
             .align_items(Alignment::Center)
             .spacing(4),
@@ -598,12 +604,15 @@ impl TokenMaker {
                 }),
                 tooltip(
                     button("Set Export Path").on_press(Message::LookForOutputFolder),
-                    format!("Path: {}", self.data.get_output_folder().to_string_lossy()),
-                    tooltip::Position::Bottom
+                    format!(
+                        "Current Path: {}",
+                        self.data.get_output_folder().to_string_lossy()
+                    ),
+                    Position::Bottom
                 )
                 .style(Style::Frame),
                 if let Err(e) = self.can_save() {
-                    tooltip(button("Export"), e, tooltip::Position::Bottom).style(Style::Frame)
+                    tooltip(button("Export"), e, Position::Bottom).style(Style::Frame)
                 } else {
                     if self
                         .workspaces
@@ -615,7 +624,7 @@ impl TokenMaker {
                                 .on_press(Message::Export)
                                 .style(Style::Danger.into()),
                             "One or more workspaces will override existing file",
-                            tooltip::Position::Bottom,
+                            Position::Bottom,
                         )
                         .style(Style::Frame)
                     } else {
@@ -796,8 +805,18 @@ impl TokenMaker {
         );
 
         let openers = row![
-            button("Open file").on_press(Message::LookForImage),
-            button("Paste URL").on_press(Message::LookForImageFromUrl),
+            tooltip(
+                button("Open file").on_press(Message::LookForImage),
+                "Open an image from local drive",
+                Position::Bottom,
+            )
+            .style(Style::Frame),
+            tooltip(
+                button("Paste URL").on_press(Message::LookForImageFromUrl),
+                "Copy an URL and click this button to load an image from the internet",
+                Position::Bottom,
+            )
+            .style(Style::Frame)
         ]
         .spacing(5);
 
@@ -810,7 +829,12 @@ impl TokenMaker {
 
             // sourcers allow user to use already loaded image for the new frame
             let sourcers = col![
-                text("Use Existing:"),
+                tooltip(
+                    text("Use Existing:"),
+                    "Use image that's already loaded in another workspace",
+                    Position::Bottom,
+                )
+                .style(Style::Frame),
                 self.workspaces
                     .iter()
                     .enumerate()

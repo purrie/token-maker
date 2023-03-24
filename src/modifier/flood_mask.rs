@@ -1,11 +1,12 @@
 use std::sync::Arc;
 
-use iced::widget::{button, column as col, row, slider, text, horizontal_space};
+use iced::widget::{button, column as col, horizontal_space, row, slider, text, tooltip};
 use iced::{Command, Length, Point, Vector};
 
 use crate::image::convert::pixel_to_color;
 use crate::image::operations::flood_fill_mask;
 use crate::image::{GrayscaleImage, ImageOperation, RgbaImage};
+use crate::style::Style;
 use crate::widgets::PixelSampler;
 
 use super::{Modifier, ModifierOperation};
@@ -110,12 +111,28 @@ impl<'a> Modifier<'a> for FloodMask {
         _wdata: &'a crate::data::WorkspaceData,
     ) -> Option<iced::Element<Self::Message, iced::Renderer>> {
         let butt = if self.picking_pixel {
-            button("Cancel picking").on_press(FloodMaskMessage::StopPicking)
+            button("Cancel picking")
+                .on_press(FloodMaskMessage::StopPicking)
+                .style(Style::Highlight.into())
         } else {
             button("Pick pixel to mask").on_press(FloodMaskMessage::StartPicking)
         };
         let label_threshold = text("Threshold: ").width(Length::Fill);
         let label_edge = text("Soft Edge: ").width(Length::Fill);
+
+        let label_threshold = tooltip(
+            label_threshold,
+            "Determines how close the color has to be to the selected color to count as part of the mask.",
+            tooltip::Position::Bottom
+        )
+        .style(Style::Frame);
+
+        let label_edge = tooltip(
+            label_edge,
+            "Allows the mask to extend further than the threshold, softening up the mask edges.",
+            tooltip::Position::Bottom,
+        )
+        .style(Style::Frame);
 
         let slider_threshold = slider(0.0..=1.0, self.treshhold, |x| {
             FloodMaskMessage::SetTolerance(x)
@@ -211,6 +228,10 @@ impl<'a> Modifier<'a> for FloodMask {
 
     fn label() -> &'static str {
         "Flood Mask"
+    }
+
+    fn tooltip() -> &'static str {
+        "Hides parts of the image spreading from selected point through similar colors"
     }
 
     fn is_dirty(&self) -> bool {

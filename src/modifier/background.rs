@@ -1,7 +1,7 @@
 use std::{path::PathBuf, sync::Arc};
 
 use iced::{
-    widget::{button, column as col, radio, row},
+    widget::{button, column as col, radio, row, tooltip},
     Color, Command, Point, Size,
 };
 use iced_native::image::Handle;
@@ -11,6 +11,7 @@ use crate::{
         convert::image_arc_to_handle, download_image, image_filter, operations::resample_image,
         ImageOperation, RgbaImage,
     },
+    style::Style,
     widgets::{BrowserOperation, BrowsingResult, ColorPicker, Trackpad},
 };
 
@@ -285,14 +286,27 @@ impl<'a> Modifier<'a> for Background {
         let ui = match &self.background {
             BackgroundType::Image => {
                 let file = button("Choose Image").on_press(BackgroundMessage::LookForImage);
+                let file = tooltip(
+                    file,
+                    "Load image from local drive",
+                    tooltip::Position::Bottom,
+                )
+                .style(Style::Frame);
                 let down = button("Paste URL").on_press(BackgroundMessage::LookForUrl);
+                let down = tooltip(
+                    down,
+                    "Copy URL and press the button to automatically load the image in from the internet.",
+                    tooltip::Position::Bottom
+                ).style(Style::Frame);
+
                 let transform = if self.image.is_some() {
-                    let label = if self.repositioning {
-                        "Stop Repositioning"
+                    if self.repositioning {
+                        button("Stop Repositioning")
+                            .on_press(BackgroundMessage::RepositionImage)
+                            .style(Style::Highlight.into())
                     } else {
-                        "Reposition Image"
-                    };
-                    button(label).on_press(BackgroundMessage::RepositionImage)
+                        button("Reposition Image").on_press(BackgroundMessage::RepositionImage)
+                    }
                 } else {
                     button("Reposition Image")
                 };
@@ -358,6 +372,10 @@ impl<'a> Modifier<'a> for Background {
 
     fn label() -> &'static str {
         "Background"
+    }
+
+    fn tooltip() -> &'static str {
+        "Fills transparent pixels with solid color or image, providing background to your image"
     }
 
     fn is_dirty(&self) -> bool {

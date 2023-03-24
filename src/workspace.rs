@@ -2,7 +2,8 @@ use std::sync::Arc;
 use std::time::Duration;
 use std::{fmt::Display, path::PathBuf};
 
-use iced::widget::radio;
+use iced::widget::tooltip::Position;
+use iced::widget::{radio, tooltip};
 use iced::{
     widget::{
         button, column as col, container, horizontal_space, image::Handle, row, scrollable, text,
@@ -435,7 +436,7 @@ impl Workspace {
         // main controls are mostly for customizing the workspace
         let main_controls = col![
             row![
-                text_input("Output name", &self.data.output, |x| {
+                text_input("File name", &self.data.output, |x| {
                     WorkspaceMessage::OutputNameChange(x)
                 }),
                 PickList::new(
@@ -446,6 +447,7 @@ impl Workspace {
             ]
             .height(Length::Shrink)
             .align_items(Alignment::Center),
+
             row![
                 text(&format!(
                     "Image size: {}x{}",
@@ -453,7 +455,11 @@ impl Workspace {
                     self.data.source.height()
                 )),
                 horizontal_space(Length::FillPortion(1)),
-                text("Zoom: "),
+                tooltip(
+                    text("Zoom: "),
+                    "Zoom in or out on the image. You can use scrollwheel while your cursor is over the image to adjust it. Hold shift for granular control",
+                    Position::Bottom
+                ).style(Style::Frame),
                 text_input("Zoom", &format!("{:.2}", self.data.zoom), |x| {
                     if let Ok(x) = x.parse() {
                         WorkspaceMessage::Zoom(x)
@@ -466,10 +472,16 @@ impl Workspace {
             .height(Length::Shrink)
             .spacing(5)
             .align_items(Alignment::Center),
+
             row![
-                text("Offset: ")
-                    .width(Length::FillPortion(1))
-                    .vertical_alignment(iced::alignment::Vertical::Center),
+                tooltip(
+                    text("Offset: ")
+                        .width(Length::FillPortion(1))
+                        .vertical_alignment(iced::alignment::Vertical::Center),
+                    "Determines position of the image in relation to final export. Drag with left mouse click on the image to adjust. Hold shift for granular control",
+                    Position::Bottom
+                ).style(Style::Frame),
+
                 text_input("x", &format!("{:.2}", self.data.offset.x), |x| {
                     if let Ok(x) = x.parse() {
                         WorkspaceMessage::Slide(Point {
@@ -497,10 +509,16 @@ impl Workspace {
             .height(Length::Shrink)
             .spacing(5)
             .align_items(Alignment::Center),
+
             row![
-                text("Size: ")
-                    .width(Length::FillPortion(1))
-                    .vertical_alignment(iced::alignment::Vertical::Center),
+                tooltip(
+                    text("Size: ")
+                        .width(Length::FillPortion(1))
+                        .vertical_alignment(iced::alignment::Vertical::Center),
+                    "Sets resolution for the final image to be exported at.",
+                    Position::Bottom
+                ).style(Style::Frame),
+
                 text_input("Width", &self.width_carrier, |x| {
                     WorkspaceMessage::SetOutputWidth(x)
                 })
@@ -547,9 +565,14 @@ impl Workspace {
                 .spacing(2);
                 r = row![
                     r.width(64),
-                    radio(m.label(), i, Some(self.selected_modifier), |x| {
-                        WorkspaceMessage::SelectModifier(x)
-                    })
+                    tooltip(
+                        radio(m.label(), i, Some(self.selected_modifier), |x| {
+                            WorkspaceMessage::SelectModifier(x)
+                        }),
+                        m.tooltip(),
+                        Position::Bottom,
+                    )
+                    .style(Style::Frame),
                 ]
                 .spacing(4);
                 col.push(r)

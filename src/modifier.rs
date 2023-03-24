@@ -32,6 +32,9 @@ pub trait Modifier<'a> {
     /// Label of the modifier to be shown in the UI
     fn label() -> &'static str;
 
+    /// Returns tooltip text for the modifier
+    fn tooltip() -> &'static str;
+
     /// Tests whatever the modifier data has been changed in a way that requires redrawing the image
     fn is_dirty(&self) -> bool;
 
@@ -158,6 +161,13 @@ macro_rules! make_modifier {
                 match self {
                     $(
                         ModifierBox::$md(_) => $md::label(),
+                    )+
+                }
+            }
+            pub fn tooltip(&self) -> &'static str {
+                match self {
+                    $(
+                        ModifierBox::$md(_) => $md::tooltip(),
                     )+
                 }
             }

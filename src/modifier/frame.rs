@@ -3,7 +3,7 @@ use std::sync::Arc;
 use iced::{
     widget::{
         button, column as col, container, radio, row, scrollable, scrollable::Properties, text,
-        vertical_space,
+        tooltip, tooltip::Position, vertical_space,
     },
     Alignment, Color, Command, Length, Size,
 };
@@ -81,6 +81,10 @@ impl<'a> Modifier<'a> for Frame {
 
     fn label() -> &'static str {
         "Frame"
+    }
+
+    fn tooltip() -> &'static str {
+        "Applies a frame around your image, masking out parts that would go outside of it"
     }
 
     fn is_dirty(&self) -> bool {
@@ -207,8 +211,14 @@ impl<'a> Modifier<'a> for Frame {
         Some(
             col![
                 button("Select Frame").on_press(FrameMessage::OpenFrameSelect),
+
                 row![
-                    text("Tint: "),
+                    tooltip(
+                        text("Tint: "),
+                        "The frame will be tinted by this color. Select pure white to turn off tinting",
+                        Position::Bottom
+                    ).style(Style::Frame),
+
                     ColorPicker::new(self.tint, |c| FrameMessage::SetTint(c))
                         .width(Length::Fixed(32.0))
                         .height(Length::Fixed(32.0)),
