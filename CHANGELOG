@@ -1,4 +1,15 @@
 
+# v0.5.0
+- Added ability to switch image for all workspaces
+- Added Background modifier
+- Added Greenscreen modifier
+- Added Flood Fill Mask modifier
+- Added tooltips to various parts of the UI
+- Added ability to reorder modifiers
+
+- Fixed frames not being centered correctly in Frame modifier browser
+- Fixed pixel sampling on large images not being correct
+
 # v0.4.2
 - Fixed color picker being clipped by the side of the window
 - Frame modifier now allows the frames to be filtered by category

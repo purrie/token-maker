@@ -1,0 +1,45 @@
+#+title: Manual
+
+After opening the program, you will be asked to either have an url of an image you wish to use, or to navigate to the folder on your local drive. This will open the image in the editor.
+
+You can have many editors open at the same time using Add Workspace button to add new ones. The intended workflow is to use the same image to create character's token and portrait or any other combination of art at the same time using multiple editor workspaces open side by side. When you press Export button, images from all workspaces will be saved to specified path with names from their workspaces.
+
+* Workspaces
+You can use variable name $project_name in name of the workspace and it will be replaced with project name as you can input at top of the window. Intent there is to let you choose a name for all exported images and just have decorators appended to each determining its use, "-token" or "-portrait" for tokens and portraits respectively for example. Variable name can be put in any part of the workspace name to create prefixes and postfixes.
+
+You can use your cursor to drag the image inside preview area to change its offset or use your wheelscroll to change the zoom level. Those values are also displayed in the interface to allow you more precise adjustments. Holding Shift key while performing those operations allows for more gradual adjustments.
+
+You can resize the preview of the image while holding Alt and using your scrollwheel. This allows you to zoom in or out on the preview without affecting the desired size of the image. Clicking Alt + Middle mouse button resets the zoom level.
+
+Size controls allow you to choose the target size of the exported images. The size depends on what environment you intend to use those, most often sizes range between 200 and 500.
+
+* Modifiers
+You can use modifiers to apply effects to the image. Most commonly you will want to use Frame modifier which will surround your image with a frame. The program comes with multiple default frames and allows you to create more with Frame Maker.
+
+** Frame
+This modifier allows you to choose which frame to apply to the image. Anything outside of the frame will be masked out. It also allows you to tint the frame color.
+
+** Background
+You can use this modifier to apply a color or image behind the actual image you want to use. It will fill up any transparent pixels that your image may have. You can use either an image from your local drive or paste an URL into the modifier, similarly to how you can with the actual token image.
+
+** Greenscreen
+This modifier takes a color and masks it out on your source image which can be used to make background of your source image transparent if you want it to be see through or want to use different background with use of Background modifier. The controls in the modifier allow you to determine threshold of how similar or different from the starting color pixels in the image can be to be masked out.
+
+** Flood Mask
+This works similarly to Greenscreen modifier but instead of taking color, it allows you to specify a position on your source image and it will flood fill the mask starting from that position and spreading to neighboring pixels of similar enough colors, which you can customize with the sliders similarly as with Greenscreen modifier.
+
+* Frame Maker
+The program includes frame maker editor which allows easy way to add new frames of your own design. You can load the image from your local drive to edit it.
+
+The program expects you to have finished frame image in png, webp or jpg format. After the image loads into the editor, all you need is to click which area of the image should be masked for the portrait to be visible at. You do so by clicking with your cursor pointer inside your frame. You will see a preview of the masked area as a grayscale grid. Then make sure to name the frame and set its category. The category also serves as a directory in which the frame will be saved in, allowing you to nest frames by their groupings.
+
+You can use path separators to specify subcategory and subfolder for the frame.
+
+After you're done, pressing export will save the frame.
+
+* Settings
+In settings you will be able to choose between dark and light themes for the program as well as what layout for workspaces you want to use.
+
+If you have a large screen, parallel layout will allow you to have preview of multiple workspaces at the same time while tabbed layout allows to work in smaller windows without the UI getting too squished together.
+
+You can set default names for each workspace template here too.

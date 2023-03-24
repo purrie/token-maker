@@ -3,57 +3,15 @@
 * About
 Goal of this project is to create a fully functional, fast and easy to use program for making tokens, cards, figurines and similar art for use in tabletop roleplaying games and similar environments.
 
-The program is in alpha stage of production. It is usable as is but lacks many features and polish.
+The program is already advanced enough to be suitable for use. There are many more features I want to implement before I'm satisfied enough to call it complete tho.
 
 * Manual
-After opening the program, you will be asked to either have an url of an image you wish to use, or to navigate to the folder on your local drive. This will open the image in the editor.
-
-You can have many editors open at the same time using Add Workspace button to add new ones. The intended workflow is to use the same image to create character's token and portrait or any other combination of art at the same time using multiple editor workspaces open side by side. When you press Export button, images from all workspaces will be saved to specified path with names from their workspaces.
-
-** Workspaces
-You can use variable name $project_name in name of the workspace and it will be replaced with project name as you can input at top of the window. Intent there is to let you choose a name for all exported images and just have decorators appended to each determining its use, "-token" for tokens for example. Variable name can be put in any part of the workspace name to create prefixes and postfixes.
-
-You can use your cursor to drag along the image to change its offset or use your wheelscroll to change the zoom level. Those values are also displayed in the interface to allow you more precise adjustments. Holding Shift key while performing those operations allows for more gradual adjustments.
-
-You can resize the preview of the image while holding Alt and using your scrollwheel. This allows you to zoom in or out on the preview without affecting the desired size of the image.
-
-Size controls allow you to choose the target size of the exported images. The size depends on what environment you intend to use those, most often sizes range between 200 and 500.
-
-** Modifiers
-Currently, the only available modifier is Frame, which surrounds the image with a frame and masks anything outside the frame.
-
-With time there will be more modifier types available as development continues.
-
-** Frame Maker
-The program has included frame maker editor which allows easy way to add new frames of your own design. You can load the image from your local drive to edit it.
-
-The program expects you to have finished frame image in png format. After the image loads into the editor, all you need is to click which area of the image should be masked for the portrait to be visible at. You do so by clicking with your cursor pointer inside your frame. You will see a preview of the masked area as a grayscale grid. Then make sure to name the frame and set its category. The category also serves as a directory in which the frame will be saved in, allowing you to nest frames by their groupings.
-
-You can use path separators ("\" on windows and "/" on linux) to specify subcategory and subfolder for the frame.
-
-After you're done, pressing export will save the frame.
-
-** Settings
-In settings you will be able to choose between dark and light themes for the program as well as what layout for workspaces you want to use.
-
-If you have a large screen, parallel layout will allow you to have preview of multiple workspaces at the same time while tabbed layout allows to work in smaller windows without the UI getting too squished together.
-
-You can set default names for each workspace template here too.
-
-* Building
-To build the project you need Cargo to handle rust dependencies and building with optional Just command runner.
-
-Some dependencies of the program require that you have cmake, openssl v1 and fontconfig development libraries installed on your system.
-
-You can use Just command runner to execute build and installation scripts.
-#+BEGIN_SRC shell
-just install
-just remove
-#+END_SRC
-Full list of commands can be viewed with flag -l
+The program should be self explanatory for the most part but if you need detailed explanations of its functionality, you can read the [[./MANUAL.org][Manual]] document.
 
 * Contributing
 If you find any bugs or issues with the program, please notify me by writing an issue describing the problem and steps to reproduce it.
+
+The easiest way to contribute to the project would be to donate to the development fund. You can do so here: [[https://www.buymeacoffee.com/purrie][Link]]
 
 Before making feature suggestions, please familiarize yourself with the roadmap of the project. If the feature you want isn't planned yet, you can describe the functionality you wish to be added by writing an issue.
 
@@ -61,9 +19,24 @@ If you wish to contribute art or code to the project, familiarize yourself with 
 
 Please keep in mind that I'm only accepting contributions of art and code that you made yourself or have rights to. Any contributions must follow the same licensing scheme as described in the copyright document.
 
+* Building
+To build the project you need Cargo to handle rust dependencies. Some dependencies of the program require that you have cmake, openssl v1 or later and fontconfig development libraries installed on your system.
+
+You can use Just command runner to execute build and installation scripts.
+
+Most common operations you will want to use is installation or removal. Those can be achieved with following commands:
+#+BEGIN_SRC shell
+just install
+#+END_SRC
+
+#+BEGIN_SRC shell
+just remove
+#+END_SRC
+Keep in mind that current removal script removes all files related to the program, which means if you created your own custom frames, those will be deleted too!
+
 * License
 Token Maker
-Copyright (C) 2023 Purrie
+Copyright (C) 2023 Purrie Brightstar
 
 This program is free software: you can redistribute it and/or modify
 it under the terms of the GNU General Public License as published by
