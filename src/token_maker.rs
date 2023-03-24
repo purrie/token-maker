@@ -120,7 +120,8 @@ impl Application for TokenMaker {
     fn new(_flags: Self::Flags) -> (Self, Command<Self::Message>) {
         (
             {
-                let data = ProgramData::new();
+                let mut data = ProgramData::new();
+                data.status.log("Loading frames...");
                 let s = Self {
                     data,
                     operation: Mode::CreateWorkspace,
@@ -393,6 +394,7 @@ impl Application for TokenMaker {
 
             Message::LoadedFrames(frames) => {
                 self.data.available_frames = frames;
+                self.data.status.log("Frames loaded");
                 Command::none()
             }
 
