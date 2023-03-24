@@ -133,8 +133,8 @@ impl<'a> Modifier<'a> for Greenscreen {
         _wdata: &'a crate::data::WorkspaceData,
     ) -> Option<iced::Element<Self::Message, iced::Renderer>> {
         let picker = ColorPicker::new(self.color, |x| GreenscreenMessage::SetColor(x))
-            .width(32)
-            .height(32);
+            .width(26)
+            .height(26);
         let butt = if self.sampling_pixel {
             button("Cancel Sampling").on_press(GreenscreenMessage::StopSampling)
         } else {
@@ -150,15 +150,15 @@ impl<'a> Modifier<'a> for Greenscreen {
 
         Some(
             col![
-                row![butt, picker].spacing(4),
+                row![butt, picker].spacing(4).align_items(iced::Alignment::Center),
                 row![
-                    text("Threshhold: ").width(Length::Fill),
+                    text("Threshold: ").width(Length::Fill),
                     slider_range.width(Length::FillPortion(4)),
                     horizontal_space(Length::FillPortion(2))
                 ]
                 .spacing(4),
                 row![
-                    text("Smooth Edge: ").width(Length::Fill),
+                    text("Soft Edge: ").width(Length::Fill),
                     slider_blend.width(Length::FillPortion(4)),
                     horizontal_space(Length::FillPortion(2))
                 ]

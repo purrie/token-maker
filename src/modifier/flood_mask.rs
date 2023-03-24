@@ -1,7 +1,7 @@
 use std::sync::Arc;
 
-use iced::widget::{button, column as col, row, slider, text};
-use iced::{Command, Point, Vector};
+use iced::widget::{button, column as col, row, slider, text, horizontal_space};
+use iced::{Command, Length, Point, Vector};
 
 use crate::image::convert::pixel_to_color;
 use crate::image::operations::flood_fill_mask;
@@ -114,26 +114,38 @@ impl<'a> Modifier<'a> for FloodMask {
         } else {
             button("Pick pixel to mask").on_press(FloodMaskMessage::StartPicking)
         };
+        let label_threshold = text("Threshold: ").width(Length::Fill);
+        let label_edge = text("Soft Edge: ").width(Length::Fill);
+
+        let slider_threshold = slider(0.0..=1.0, self.treshhold, |x| {
+            FloodMaskMessage::SetTolerance(x)
+        })
+        .step(0.001)
+        .width(Length::FillPortion(4));
+
+        let slider_edge = slider(0.0..=1.0, self.soft_border, |x| {
+            FloodMaskMessage::SetSoftBorder(x)
+        })
+        .step(0.001)
+        .width(Length::FillPortion(4));
+
         let ui = col![
             butt,
             row![
-                text("Color Treshhold: "),
-                slider(0.0..=1.0, self.treshhold, |x| {
-                    FloodMaskMessage::SetTolerance(x)
-                })
-                .step(0.001),
+                label_threshold,
+                slider_threshold,
+                horizontal_space(Length::FillPortion(2))
             ]
-            .spacing(2),
+            .spacing(4),
             row![
-                text("Soft Border: "),
-                slider(0.0..=1.0, self.soft_border, |x| {
-                    FloodMaskMessage::SetSoftBorder(x)
-                })
-                .step(0.001),
+                label_edge,
+                slider_edge,
+                horizontal_space(Length::FillPortion(2))
             ]
-            .spacing(2),
+            .spacing(4),
         ]
-        .spacing(2);
+        .spacing(6);
+
         Some(ui.into())
     }
 
