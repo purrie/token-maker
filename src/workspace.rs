@@ -283,7 +283,7 @@ impl Workspace {
                 size: self.data.zoom,
             }];
 
-            self.modifiers.iter_mut().for_each(|x| {
+            self.modifiers.iter_mut().rev().for_each(|x| {
                 match x.get_image_operation(pdata, &self.data) {
                     ModifierOperation::None => {}
                     ModifierOperation::Single(o) => ops.push(o),
