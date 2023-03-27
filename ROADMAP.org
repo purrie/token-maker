@@ -2,47 +2,8 @@
 
 This document contains ideas and goals for the project as well as description of progress for each. Entries closer to the top can be considered of higher priority for current development.
 
-* TODO Production
-This is a list of functionality what I want for the program to consider it ready to be used by regular people
-
-** UI/UX [8/8]
-- [X] Frames need to have improved frame choice UI and implement categories
-- [X] Make offset be displayed at 0 instead of center of the image
-- [X] Export button should become red if any workspace points to a file that already exist
-- [X] There should be a button that allows switching base/source image for all workspaces at once
-- [X] Move close button to top bar and have it choose which workspace to close
-- [X] Color Picker should allow direct value input
-- [X] Make tooltips have better visibility
-- [X] The Workspace tabs should be moved to the header line, or at least made it so they don't steal space from workspace buttons
-
-** Bug fixes [6/6]
-- [X] Trackpad doesn't release when the button is released off its area.
-- [X] There's no way to reset trackpad zoom level
-- [X] Color Picker gets clipped away on the window edge
-- [X] Frame modifier frames need to be centered within buttons
-- [X] Workspaces with portrait template doesn't resize export on image swap
-- [X] Project name incorrectly states removal of invalid characters
-
-** Modifiers [6/6]
-- [X] Ability to reorder modifiers
-- [X] Custom widget or style for modifier list items
-- [X] There needs to be clear distinction as to which modifier is currently selected
-- [X] Auto-alpha / greenscreen modifier
-- [X] Flood mask. It should take a location and generate a mask from it, similarly to how frame maker generates a mask.
-- [X] Backgrounds modifier
-
-** Manual
-There needs to be a document that properly outlines the functionality of the program and its components. Maybe a website? Something accessible locally would be nice, so I could distribute it with the program, especially if it would be accessible through the program itself.
-
-
 * Modifiers
 Bonus points if modifiers could be applied only to specified part of the image
-
-** Reordering
-The UI needs to offer an easy way to reorder modifiers
-
-** Backgrounds
-An image could be moved out of the frame of the final result, user should have ability to specify a color or image to use for background.
 
 ** Alpha paint
 Modifier for adjusting alpha on the image
@@ -51,19 +12,13 @@ Modifier for adjusting alpha on the image
 Basic color adjust modifier to paint simple things so you don't have to go through a painting program if you just want to recolor someone's eyes and similar minor adjustments
 
 ** IDEA Image compositing
-Would it be useful to have an ability to combine multiple images into one token/card/portrait? This could be reaching outside the scope of the program tho.
-
-** Auto alpha
-Inspired by my SL shop thumbnail maker material I've made. User should have ability to specify which color to auto alpha out for images that have solid or mostly solid color background.
+Would it be useful to have an ability to combine multiple images from other workspaces into one token/card/portrait? This could be reaching outside the scope of the program tho.
 
 ** Filters
 Stuff for blurs, glows, color shifts and so on.
 
 ** Transforms
 Ability to scale, rotate or move image through a modifier
-
-** DONE Frames
-frame modifier with ability to mask out area outside the frame
 
 ** Decorations
 Additional icons and other stuff that user can throw into the image, adding simple decorations.
@@ -91,6 +46,7 @@ This could be implemented if there was a way for modifiers to store data that wo
 - Roman
 - Medieval
 - Fantasy
+- Monstrous
 - Pre-modern
 - Modern
 - Cyberpunk
@@ -102,12 +58,6 @@ This could be implemented if there was a way for modifiers to store data that wo
 - Hexagonal frames
 - Turned hexagonal frames
 
-*** Round Thin
-Most thin frames won't be very visible so they don't need anything elaborate on the frame itself.
-
-*** Round Thick
-Thick frames have enough space to have some basic patterns drawn on them.
-
 ** Card Art
 Going to wait for text modifier with this one probably
 
@@ -116,9 +66,6 @@ For portraits. In portrait and landscape aspects.
 
 ** Decorations
 Various minor icons that can be added onto the image
-
-* Manual
-The program itself should have tooltips and other ways of instructing the user without needing to read through the actual manual for basic usage. The principle here is that an user should be able to install the program, turn it on and be able to produce a basic result with little to no external instruction.
 
 * TODO Workspace Templates
 Just a way to quickly add and set up the workspace with basic defaults for specific purpose
@@ -131,12 +78,14 @@ Just a way to quickly add and set up the workspace with basic defaults for speci
 ** Standee
   Image with alpha masked background and outline in customizable color
 
-This should be both a menu or set of buttons that will quickly add a workspace with selected template using the image loaded in the last workspace, as well as a set of choices in the regular new workspace screen to quickly set it up after loading the image.
-
 * UI/UX
 - [ ] Add feedback to program components in status line
 
+* Bugs
+- [ ] Using image from drive in background modifier seems bugged
+
 * File browser
+- Rewrite as an Iced Widget
 - Bookmarks for easier navigation
 - Image preview area to allow user to see the selected image file
 - Ability to make folders
@@ -164,38 +113,3 @@ Could be done by animating values of filters, or having a collection of filters 
 * IDEA Project Saving
 Once I implement animations, it will probably be a good idea to also implement a way of saving the project so the work is not lost if someone wants to tweak the animation.
 
-* DONE Frame maker
-Need a workspace mode which would be for making frames, probably with its own template. Tho, to signify that this mode is for making assets for the program itself, it could be a better idea to not shove it into workspaces since those are for making tokens and such. It could also be used for making decorations.
-
-Then art can be created
-
-- Implement folder/categories for token frames
-
-* DONE Cache
-Program needs to save cache with most recently used settings for workspaces, with support for templates. Cache needs to be saved for modifiers as well.
-
-Values for program itself should be cached too.
-
-This will likely be HashMap<ID, HashMap<String, String>> sort of structure where each part of the program would manage its own hashmap of things to be saved or loaded during update cycles. The final values for the hashmap could be an enum instead of a string. I think the keys can stay as some form of strings to not overcomplicate stuff.
-
-* DONE Settings
-- Choose color schemes
-- Choose layout between divided space and tabs for workspaces
-- Naming conventions
-  This should give the user ability to set naming convention for different templates so user can add prefix, postfix or anything in between to the name for each template
-
-* DONE Global project name
-Aside from global path, user should be able to specify prefix, and possibly postfix for all exports so the individual workspace names are used mostly as distinguishers between the type
-
-* DONE Adding Workspaces
-Adding should be done through a button, which will add a faux workspace in which user will be able to choose either one of the loaded images from other workspaces or load a new one as a starting point
-
-* DONE Layer support
-Creating separate workflows for different outputs seems like unnecessary work. I think creating a layer workflow similar to painting programs would work best for supporting different output targets like tokens or cards.
-
-Important to note is that this while there will be painting like features, painting isn't the goal of this program. Layers should work in a way that makes it easy to work with to create tokens, which I imagine is different than how it works in regular painting programs.
-
-Layers should also make it easier to implement other features I want, serving a role of containers for modifiers, transformations and so on.
-
-** DONE Properties
-Each layer could have its own properties, those need to be displayed in most user friendly manner.
