@@ -39,7 +39,7 @@ pub enum BackgroundMessage {
     SetMode(BackgroundType),
     SetOffset(Point),
     SetZoom(f32),
-    SetImage(Result<(Arc<RgbaImage>, Handle), PathBuf>),
+    SetImage(Result<(Arc<RgbaImage>, Arc<RgbaImage>, Handle), PathBuf>),
     UpdateImage(Arc<RgbaImage>, Handle),
     LookForImage,
     LookForUrl,
@@ -120,8 +120,18 @@ impl<'a> Modifier<'a> for Background {
                     BrowsingResult::Done(path) => {
                         self.browsing = false;
                         pdata.status.log(&format!("loading background: {:?}", path));
+                        let offset = self.offset;
+                        let zoom = self.zoom;
+                        let size = wdata.export_size;
                         Command::perform(
-                            load_image(path, wdata.export_size),
+                            async move {
+                                let Ok(img) = image::open(&path) else {
+                                    return Err(path);
+                                };
+                                let img = Arc::new(img.into_rgba8());
+                                let result = resize_image(img.clone(), offset, zoom, size).await;
+                                Ok((img, result.0, result.1))
+                            },
                             BackgroundMessage::SetImage,
                         )
                     }
@@ -132,8 +142,8 @@ impl<'a> Modifier<'a> for Background {
                     Command::none()
                 }
             },
-            BackgroundMessage::SetImage(Ok((img, rendr))) => {
-                self.source = Some(img.clone());
+            BackgroundMessage::SetImage(Ok((src, img, rendr))) => {
+                self.source = Some(src);
                 self.image = Some(img);
                 self.preview = Some(rendr);
                 self.dirty = true;
@@ -385,14 +395,6 @@ impl<'a> Modifier<'a> for Background {
     fn set_clean(&mut self) {
         self.dirty = false;
     }
-}
-
-async fn load_image(path: PathBuf, size: Size<u32>) -> Result<(Arc<RgbaImage>, Handle), PathBuf> {
-    let Ok(img) = image::open(&path) else {
-        return Err(path);
-    };
-    let (img, preview) = resize_image(Arc::new(img.into_rgba8()), Point::ORIGIN, 1.0, size).await;
-    Ok((img, preview))
 }
 
 async fn resize_image(
