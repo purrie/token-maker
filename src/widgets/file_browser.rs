@@ -1,7 +1,9 @@
+use std::fs::File;
+use std::io::{Read, Write};
 use std::path::PathBuf;
 
 use iced::widget::{
-    button, column as col, container, horizontal_space, row, scrollable, text,
+    button, column as col, container, horizontal_space, row, scrollable, text, vertical_space,
 };
 use iced::{Alignment, Element, Length, Renderer};
 
@@ -12,6 +14,8 @@ pub struct Browser {
     selected: Option<PathBuf>,
     dir: Vec<PathBuf>,
     target: Target,
+    roots: Vec<PathBuf>,
+    favorites: Vec<PathBuf>,
 }
 
 #[derive(Debug, Clone)]
@@ -19,6 +23,7 @@ pub enum BrowserOperation {
     MoveUp,
     MoveInto(PathBuf),
     Select(Option<PathBuf>),
+    Favorite,
     Cancel,
     Accept,
 }
@@ -46,6 +51,8 @@ impl Browser {
             selected: None,
             dir: Vec::new(),
             target: Target::File,
+            roots: Browser::get_roots(),
+            favorites: Self::get_favorites(),
         }
     }
 
@@ -57,7 +64,84 @@ impl Browser {
             selected: None,
             dir: Vec::new(),
             target: Target::File,
+            roots: Browser::get_roots(),
+            favorites: Self::get_favorites(),
         }
+    }
+
+    fn get_favorites() -> Vec<PathBuf> {
+        let favorites_path = dirs::config_dir().unwrap();
+        let favorites_path = favorites_path.join(crate::data::PROJECT_NAME).join("favorites.list");
+        if (!favorites_path.exists() || !favorites_path.is_file()) {
+            return Vec::new();
+        }
+        let Ok(mut file) = File::open(favorites_path) else {
+            return Vec::new();
+        };
+        let mut buff = String::new();
+        let Ok(size) = file.read_to_string(&mut buff) else {
+            return Vec::new();
+        };
+
+        let split = buff.split('\n');
+        split.fold(Vec::new(), |mut v, s| { if s.len() > 0 { v.push(s.to_string().into()); } v })
+    }
+
+    fn save_favorite(&self) {
+        let config_dir = dirs::config_dir().unwrap().join(crate::data::PROJECT_NAME);
+        if !config_dir.exists() {
+            std::fs::create_dir_all(config_dir.clone());
+        }
+        let favorites_path = config_dir.join("favorites.list");
+        let Ok(mut file) = File::create(favorites_path) else {
+            return ;
+        };
+
+        for path in self.favorites.iter() {
+            if let Err(_) = file.write_fmt(format_args!("{}\n", path.to_str().unwrap())) {
+
+            }
+        }
+    }
+
+    fn get_roots() -> Vec<PathBuf> {
+        let mut roots = Vec::new();
+        if cfg!(windows) {
+            for letter in 'A'..'Z' {
+                let path = PathBuf::from(format!("{letter}:\\"));
+                if path.exists() {
+                    roots.push(path);
+                }
+            }
+            roots.push(dirs::home_dir().unwrap());
+        }
+        else if cfg!(unix) {
+            roots.push(PathBuf::from("/")) ;
+            let mnt = PathBuf::from("/mnt");
+            if let Ok(p) = std::fs::read_dir(mnt) {
+                for dir in p {
+                    let Ok(rdir) = dir else { continue };
+                    let path = rdir.path();
+                    if path.is_dir() {
+                        roots.push(path);
+                    }
+                }
+            }
+            let media = PathBuf::from("/media");
+            if let Ok(p) = std::fs::read_dir(media) {
+                for dir in p {
+                    let Ok(rdir) = dir else { continue };
+                    let path = rdir.path();
+                    if path.is_dir() {
+                        roots.push(path);
+                    }
+                }
+            }
+        }
+        roots.push(dirs::home_dir().unwrap());
+        roots.push(dirs::picture_dir().unwrap());
+        roots.push(dirs::download_dir().unwrap());
+        roots
     }
 
     /// Sets current path for the browser
@@ -137,6 +221,16 @@ impl Browser {
                 (_, Target::Directory) => Ok(BrowsingResult::Done(self.path.clone())),
                 _ => Ok(BrowsingResult::Pending),
             },
+            BrowserOperation::Favorite => if let Some(idx) = self.favorites.iter().position(|x| self.path.eq(x)) {
+                self.favorites.remove(idx);
+                self.save_favorite();
+                Ok(BrowsingResult::Pending)
+            }
+            else {
+                self.favorites.push(self.path.clone());
+                self.save_favorite();
+                Ok(BrowsingResult::Pending)
+            }
         }
     }
     pub fn view(&self) -> Element<BrowserOperation, Renderer> {
@@ -189,8 +283,83 @@ impl Browser {
         let bottom = container(bottom)
             .style(Style::Margins)
             .padding(4)
-            .width(Length::Fill)
+            .width(Length::FillPortion(5))
             .height(Length::Fill);
+
+        let quick_access_list = self
+            .roots
+            .iter()
+            .map(|dir| {
+                if let Some(name) = dir.file_name().and_then(|n| n.to_str()) {
+                    (dir, name)
+                }
+                else {
+                    if cfg!(windows) {
+                        (dir, dir.to_str().unwrap())
+                    }
+                    else {
+                        (dir, "root")
+                    }
+                }
+            })
+            .map(|( dir, name )| {
+                button(text(name)).on_press(BrowserOperation::MoveInto(dir.clone()))
+                    .width(Length::Fill)
+            })
+            .fold(col![].spacing(1), |col, butt| col.push(butt));
+
+        let quick_access_list = container(quick_access_list)
+            .style(Style::Margins)
+            .padding(4)
+            .width(Length::Fill);
+
+        let favorites_list = self
+            .favorites
+            .iter()
+            .map(|dir| {
+                if let Some(name) = dir.file_name().and_then(|n| n.to_str()) {
+                    (dir, name)
+                }
+                else {
+                    if cfg!(windows) {
+                        (dir, dir.to_str().unwrap())
+                    }
+                    else {
+                        (dir, "root")
+                    }
+                }
+            })
+            .map(|( dir, name )| {
+                button(text(name)).on_press(BrowserOperation::MoveInto(dir.clone()))
+                    .width(Length::Fill)
+            })
+            .fold(col![].spacing(1), |col, butt| col.push(butt));
+
+
+        let favorites_list = container(favorites_list)
+            .style(Style::Margins)
+            .padding(4)
+            .width(Length::Fill);
+
+        let side = col![
+            text("Quick access"),
+            quick_access_list,
+            vertical_space(6),
+            row![
+                text("Favorites").width(Length::Fill),
+                if self.favorites.contains(&self.path) {
+                    button("-").on_press(BrowserOperation::Favorite)
+                }
+                else {
+                    button("+").on_press(BrowserOperation::Favorite)
+                }
+            ].align_items(Alignment::End),
+            vertical_space(2),
+            favorites_list
+        ]
+            .width(Length::FillPortion(1))
+            .padding(8);
+
 
         // calculating the toolbar widgets
         let move_up = if self.path.parent().is_some() {
@@ -227,7 +396,11 @@ impl Browser {
             .width(Length::Fill)
             .height(Length::Shrink);
 
-        col![top, bottom].into()
+        let bottom = row![
+            side,
+            bottom
+        ];
 
+        col![top, bottom].into()
     }
 }
