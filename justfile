@@ -34,13 +34,15 @@ remove:
     rm -r ~/.local/share/$NAME/
     @echo Removal complete.
 
+build-win:
+    cargo update
+    cargo rustc --release --target x86_64-pc-windows-gnu -- -Clink-args="-Wl,--subsystem,windows"
+
 pack-all: pack-zip pack-tar pack-deb
     @echo Packing everything completed
 
-pack-zip:
+pack-zip: build-win
     #!/usr/bin/env bash
-    cargo update
-    cargo rustc --release --target x86_64-pc-windows-gnu -- -Clink-args="-Wl,--subsystem,windows"
 
     mkdir -p ./target/pack/$NAME
     cp ./target/x86_64-pc-windows-gnu/release/$NAME.exe ./target/pack/$NAME/$NAME.exe
