@@ -1,3 +1,7 @@
+# v0.5.1
+- Added file browser quick access list for common system paths
+- Added favorite locations to the file browser, allowing saving custom paths
+- Added a set of fantasy themed frames
 
 # v0.5.0
 - Added ability to switch image for all workspaces
