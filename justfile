@@ -38,6 +38,9 @@ build-win:
     cargo update
     cargo rustc --release --target x86_64-pc-windows-gnu -- -Clink-args="-Wl,--subsystem,windows"
 
+build-linux:
+    cargo build --release --target x86_64-unknown-linux-gnu
+
 pack-all: pack-zip pack-tar pack-deb
     @echo Packing everything completed
 
@@ -54,10 +57,9 @@ pack-zip: build-win
     rm -r $NAME/
     echo Packing Zip Complete
 
-pack-tar:
+pack-tar: build-linux
     #!/usr/bin/env bash
     just mk-desktop
-    cargo build --release --target x86_64-unknown-linux-gnu
 
     mkdir -p ./target/pack/$NAME
     cp ./target/x86_64-unknown-linux-gnu/release/$NAME ./target/pack/$NAME/
@@ -96,9 +98,8 @@ pack-tar:
     rm -r $NAME/
     echo Packing Tar Complete
 
-pack-deb:
+pack-deb: build-linux
     #!/usr/bin/env bash
-    cargo build --release --target x86_64-unknown-linux-gnu
 
     VERSION_MAJOR=$(echo $VERSION | sed 's/\.[0-9]*$//')
     VERSION_MINOR=$(echo $VERSION | sed 's/^[0-9]*\.[0-9]*\.//')
