@@ -85,10 +85,6 @@ Just a way to quickly add and set up the workspace with basic defaults for speci
 - [ ] Using image from drive in background modifier seems bugged
 
 * File browser
-- Rewrite as an Iced Widget
-- Bookmarks for easier navigation
-- Image preview area to allow user to see the selected image file
-- Ability to make folders
 
 * Icons
 Button text should be replaced with icons when it makes sense. Which would primarily mean header buttons.

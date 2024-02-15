@@ -1,3 +1,8 @@
+# v0.5.2
+- Added image preview to file browser
+- Added ability to create folders in file browser
+- Portrait template no longer adds frame modifier automatically
+
 # v0.5.1
 - Added file browser quick access list for common system paths
 - Added favorite locations to the file browser, allowing saving custom paths
