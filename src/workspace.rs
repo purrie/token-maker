@@ -100,8 +100,8 @@ impl Workspace {
         let mut modifiers = Vec::new();
 
         let command = match pdata.get_workspace_template() {
-            WorkspaceTemplate::None => Command::none(),
-            WorkspaceTemplate::Token | WorkspaceTemplate::Portrait => {
+            WorkspaceTemplate::None | WorkspaceTemplate::Portrait => Command::none(),
+            WorkspaceTemplate::Token => {
                 let (command, frame) = ModifierTag::Frame.make_box(pdata, &data);
                 modifiers.push(frame);
                 command.map(|x| WorkspaceMessage::ModifierMessage(0, x))
