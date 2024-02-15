@@ -112,6 +112,7 @@ impl<'a> Modifier<'a> for Background {
             }
             BackgroundMessage::Browser(op) => match pdata.file.update(op, &mut pdata.status) {
                 Ok(o) => match o {
+                    BrowsingResult::Action(cmd) => cmd.map(BackgroundMessage::Browser),
                     BrowsingResult::Pending => Command::none(),
                     BrowsingResult::Canceled => {
                         self.browsing = false;

@@ -3,9 +3,11 @@ use std::io::{Read, Write};
 use std::path::PathBuf;
 
 use iced::widget::{
-    button, column as col, container, horizontal_space, row, scrollable, text, vertical_space, text_input,
+    button, column as col, container, horizontal_space, row, scrollable, text, vertical_space, text_input, image as image_view,
 };
-use iced::{Alignment, Element, Length, Renderer};
+use iced::{Alignment, Element, Length, Renderer, Command};
+use iced_native::image::Handle;
+use image::ImageFormat;
 
 use crate::data::{sanitize_file_name_ends, sanitize_dir_name};
 use crate::status_bar::StatusBar;
@@ -19,6 +21,7 @@ pub struct Browser {
     roots: Vec<PathBuf>,
     favorites: Vec<PathBuf>,
     new_dir_name: Option<String>,
+    image_preview: Option<Handle>,
 }
 
 #[derive(Debug, Clone)]
@@ -29,12 +32,14 @@ pub enum BrowserOperation {
     ToggleAddDirectory,
     CreateDirectory,
     UpdateDirectoryName(String),
+    SetPreviewImage(Option<Handle>),
     Favorite,
     Cancel,
     Accept,
 }
 
 pub enum BrowsingResult {
+    Action(Command<BrowserOperation>),
     Pending,
     Canceled,
     Done(PathBuf),
@@ -60,6 +65,7 @@ impl Browser {
             roots: Browser::get_roots(),
             favorites: Self::get_favorites(),
             new_dir_name: None,
+            image_preview: None,
         }
     }
 
@@ -74,6 +80,7 @@ impl Browser {
             roots: Browser::get_roots(),
             favorites: Self::get_favorites(),
             new_dir_name: None,
+            image_preview: None,
         }
     }
 
@@ -198,6 +205,7 @@ impl Browser {
                     self.path.pop();
                     self.refresh_path()?;
                     self.selected = None;
+                    self.image_preview = None;
                     Ok(BrowsingResult::Pending)
                 } else {
                     // this should never happen.
@@ -209,6 +217,7 @@ impl Browser {
                     self.path = path;
                     self.refresh_path()?;
                     self.selected = None;
+                    self.image_preview = None;
                     Ok(BrowsingResult::Pending)
                 } else {
                     // this should never happen
@@ -217,6 +226,23 @@ impl Browser {
             }
             BrowserOperation::Select(path) => {
                 self.selected = path;
+                if let Some(p) = self.selected.as_ref() {
+                    let p = p.clone();
+                    return Ok(BrowsingResult::Action(Command::perform(
+                        async move {
+                            if let Ok(_) = ImageFormat::from_path(&p) {
+                                Some(Handle::from_path(p))
+                            }
+                            else {
+                                None
+                            }
+                        },
+                        |x| BrowserOperation::SetPreviewImage(x),
+                    )));
+                }
+                else {
+                    self.image_preview = None;
+                }
                 Ok(BrowsingResult::Pending)
             }
             BrowserOperation::Cancel => {
@@ -229,6 +255,10 @@ impl Browser {
                 (_, Target::Directory) => Ok(BrowsingResult::Done(self.path.clone())),
                 _ => Ok(BrowsingResult::Pending),
             },
+            BrowserOperation::SetPreviewImage(x) => {
+                self.image_preview = x;
+                Ok(BrowsingResult::Pending)
+            }
             BrowserOperation::Favorite => if let Some(idx) = self.favorites.iter().position(|x| self.path.eq(x)) {
                 self.favorites.remove(idx);
                 self.save_favorite();
@@ -374,7 +404,7 @@ impl Browser {
             .padding(4)
             .width(Length::Fill);
 
-        let side = col![
+        let mut side = col![
             text("Quick access"),
             quick_access_list,
             vertical_space(6),
@@ -393,6 +423,10 @@ impl Browser {
             .width(Length::FillPortion(1))
             .padding(8);
 
+        if let Some(img) = self.image_preview.as_ref() {
+            side = side.push(vertical_space(Length::Fill));
+            side = side.push(col![image_view(img.clone())].width(Length::Fill).align_items(Alignment::Center));
+        }
 
         // calculating the toolbar widgets
         let move_up = if self.path.parent().is_some() {
