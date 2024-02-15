@@ -242,7 +242,7 @@ impl Application for TokenMaker {
             }
 
             Message::FileBrowser(x) => {
-                if let Ok(x) = self.data.file.update(x) {
+                if let Ok(x) = self.data.file.update(x, &mut self.data.status) {
                     match x {
                         BrowsingResult::Pending => Command::none(),
                         BrowsingResult::Canceled => {

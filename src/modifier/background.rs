@@ -110,7 +110,7 @@ impl<'a> Modifier<'a> for Background {
                 self.dirty = true;
                 Command::none()
             }
-            BackgroundMessage::Browser(op) => match pdata.file.update(op) {
+            BackgroundMessage::Browser(op) => match pdata.file.update(op, &mut pdata.status) {
                 Ok(o) => match o {
                     BrowsingResult::Pending => Command::none(),
                     BrowsingResult::Canceled => {

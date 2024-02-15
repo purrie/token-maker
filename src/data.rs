@@ -465,6 +465,7 @@ pub fn sanitize_file_name(name: String) -> String {
     name.chars()
         .map(|x| if x.is_whitespace() { '-' } else { x })
         .filter(|x| x.is_alphanumeric() || *x == '-' || *x == '_' || *x == '$')
+        .filter(|x| x.is_ascii())
         .map(|x| x.to_ascii_lowercase())
         .collect()
 }
@@ -489,6 +490,7 @@ pub fn sanitize_file_name_allow_path(name: String) -> String {
         .filter(|x| {
             x.is_alphanumeric() || *x == '-' || *x == '_' || *x == std::path::MAIN_SEPARATOR
         })
+        .filter(|x| x.is_ascii())
         .map(|x| x.to_ascii_lowercase())
         .collect()
 }
@@ -498,7 +500,18 @@ pub fn sanitize_file_name_ends(name: &String) -> String {
     name.chars()
         .enumerate()
         .filter(|(i, c)| (*i != 0 && *i != name.len() - 1) || c.is_alphanumeric())
+        .filter(|(_, x)| x.is_ascii())
         .map(|(_, x)| x)
+        .collect()
+}
+
+/// Removes any special characters from the string and turns it to lowercase to prevent cross platform naming issues
+pub fn sanitize_dir_name(name: String) -> String {
+    name.chars()
+        .map(|x| if x.is_whitespace() { '-' } else { x })
+        .filter(|x| x.is_alphanumeric() || *x == '-' || *x == '_')
+        .filter(|x| x.is_ascii())
+        .map(|x| x.to_ascii_lowercase())
         .collect()
 }
 

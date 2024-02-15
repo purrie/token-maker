@@ -3,10 +3,12 @@ use std::io::{Read, Write};
 use std::path::PathBuf;
 
 use iced::widget::{
-    button, column as col, container, horizontal_space, row, scrollable, text, vertical_space,
+    button, column as col, container, horizontal_space, row, scrollable, text, vertical_space, text_input,
 };
 use iced::{Alignment, Element, Length, Renderer};
 
+use crate::data::{sanitize_file_name_ends, sanitize_dir_name};
+use crate::status_bar::StatusBar;
 use crate::style::Style;
 
 pub struct Browser {
@@ -16,6 +18,7 @@ pub struct Browser {
     target: Target,
     roots: Vec<PathBuf>,
     favorites: Vec<PathBuf>,
+    new_dir_name: Option<String>,
 }
 
 #[derive(Debug, Clone)]
@@ -23,6 +26,9 @@ pub enum BrowserOperation {
     MoveUp,
     MoveInto(PathBuf),
     Select(Option<PathBuf>),
+    ToggleAddDirectory,
+    CreateDirectory,
+    UpdateDirectoryName(String),
     Favorite,
     Cancel,
     Accept,
@@ -53,6 +59,7 @@ impl Browser {
             target: Target::File,
             roots: Browser::get_roots(),
             favorites: Self::get_favorites(),
+            new_dir_name: None,
         }
     }
 
@@ -66,6 +73,7 @@ impl Browser {
             target: Target::File,
             roots: Browser::get_roots(),
             favorites: Self::get_favorites(),
+            new_dir_name: None,
         }
     }
 
@@ -183,7 +191,7 @@ impl Browser {
         Ok(())
     }
 
-    pub fn update(&mut self, message: BrowserOperation) -> Result<BrowsingResult, std::io::Error> {
+    pub fn update(&mut self, message: BrowserOperation, status: &mut StatusBar) -> Result<BrowsingResult, std::io::Error> {
         match message {
             BrowserOperation::MoveUp => {
                 if let Some(_) = self.path.parent() {
@@ -229,6 +237,31 @@ impl Browser {
             else {
                 self.favorites.push(self.path.clone());
                 self.save_favorite();
+                Ok(BrowsingResult::Pending)
+            },
+            BrowserOperation::ToggleAddDirectory => if self.new_dir_name.is_none() {
+                self.new_dir_name = Some("".into());
+                Ok(BrowsingResult::Pending)
+            }
+            else {
+                self.new_dir_name = None;
+                Ok(BrowsingResult::Pending)
+            },
+            BrowserOperation::CreateDirectory => match self.new_dir_name.as_ref() {
+                Some(name) => {
+                    let p = self.path.join(sanitize_file_name_ends(name));
+                    if let Err(e) = std::fs::create_dir_all(p) {
+                        status.error(&format!("Couldn't create directory {}: {}", name, e));
+                        return Ok(BrowsingResult::Pending);
+                    }
+                    self.refresh_path()?;
+                    self.new_dir_name = None;
+                    Ok(BrowsingResult::Pending)
+                },
+                None => unreachable!()
+            },
+            BrowserOperation::UpdateDirectoryName(name) => {
+                self.new_dir_name = Some(sanitize_dir_name(name));
                 Ok(BrowsingResult::Pending)
             }
         }
@@ -378,14 +411,26 @@ impl Browser {
             (Target::Directory, _) => button("Accept").on_press(BrowserOperation::Accept),
             _ => button("Accept"),
         };
+        let (new_dir, making_directory) = match self.new_dir_name.as_ref() {
+            Some(folder_name) => ( row![
+                button("Cancel").on_press(BrowserOperation::ToggleAddDirectory),
+                button("Make").on_press(BrowserOperation::CreateDirectory),
+                text_input("Directory Name", folder_name, |x| BrowserOperation::UpdateDirectoryName(x))
+            ], true),
+            None => (row![button("Make Directory").on_press(BrowserOperation::ToggleAddDirectory)], false)
+        };
 
-        let top = row![
-            button("Cancel").on_press(BrowserOperation::Cancel),
-            move_up,
-            text(format!("Directory: {}", self.path.to_string_lossy())),
-            horizontal_space(Length::Fill),
-            accept
-        ]
+        let top = if !making_directory {
+            row![
+                button("Cancel").on_press(BrowserOperation::Cancel),
+                move_up,
+                new_dir,
+                text(format!("Directory: {}", self.path.to_string_lossy())),
+                horizontal_space(Length::Fill),
+                accept
+            ]
+        }
+        else { new_dir }
         .align_items(Alignment::Center)
         .spacing(10);
 
