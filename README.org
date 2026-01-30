@@ -7,6 +7,8 @@ The program is already advanced enough to be suitable for use. There are many mo
 
 I've made a video showcasing the program and it's features. You can view it here: [[https://www.youtube.com/watch?v=m3oKcxm5JHw][Link]]
 
+The project is currently not in active development.
+
 * Manual
 The program should be self explanatory for the most part but if you need detailed explanations of its functionality, you can read the [[./MANUAL.org][Manual]] document.
 

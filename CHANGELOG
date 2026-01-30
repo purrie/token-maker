@@ -1,3 +1,6 @@
+# v0.5.3
+- Changed the radio buttons on the initial screen into check boxes so it's easier to create token and portrait workspaces at the same time.
+
 # v0.5.2
 - Added image preview to file browser
 - Added ability to create folders in file browser
