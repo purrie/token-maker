@@ -9,8 +9,22 @@ env:
   CARGO_TERM_COLOR: always
 
 jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v6
+    - name: Install system dependencies
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y libfontconfig1-dev
+    - name: Build
+      run: cargo build --verbose
+    - name: Run tests
+      run: cargo test --verbose
+
   metadata:
     runs-on: ubuntu-latest
+    needs: test
     outputs:
       name:          ${{ steps.metadata.outputs.name        }}
       version:       ${{ steps.metadata.outputs.version     }}
@@ -21,7 +35,7 @@ jobs:
       tag:           ${{ steps.metadata.outputs.tag         }}
 
     steps:
-    - uses: actions/checkout@v3
+    - uses: actions/checkout@v6
 
     - id: metadata
       run: |
@@ -59,7 +73,7 @@ jobs:
       version: ${{ needs.metadata.outputs.version }}
 
     steps:
-    - uses: actions/checkout@v3
+    - uses: actions/checkout@v6
     - name: build
       run: cargo rustc --release --target x86_64-pc-windows-gnu -- -Clink-args="-Wl,--subsystem,windows"
 
@@ -83,7 +97,7 @@ jobs:
       run: 7z a -tzip ./target/pack/${{ env.name }}-v${{ env.version }}.zip ./target/pack/${{ env.name }}/*
 
     - name: upload package
-      uses: actions/upload-artifact@v3
+      uses: actions/upload-artifact@v4
       with:
         name: win-package
         path: ./target/pack/${{ env.name }}-v${{ env.version }}.zip
@@ -96,7 +110,7 @@ jobs:
       version: ${{ needs.metadata.outputs.version }}
 
     steps:
-    - uses: actions/checkout@v3
+    - uses: actions/checkout@v6
     - name: build
       run: cargo build --release --target x86_64-unknown-linux-gnu
 
@@ -129,7 +143,7 @@ jobs:
         tar -caf ${{ env.name }}-v${{ env.version }}.tar.gz ${{ env.name }}
 
     - name: upload result
-      uses: actions/upload-artifact@v3
+      uses: actions/upload-artifact@v4
       with:
         name: tar-package
         path: ./target/pack/${{ env.name }}-v${{ env.version }}.tar.gz
@@ -143,7 +157,7 @@ jobs:
       version: ${{ needs.metadata.outputs.deb_version }}
 
     steps:
-    - uses: actions/checkout@v3
+    - uses: actions/checkout@v6
     - name: build
       run: cargo build --release --target x86_64-unknown-linux-gnu
 
@@ -178,7 +192,7 @@ jobs:
         dpkg-deb --build ${{ env.folder }}
 
     - name: upload result
-      uses: actions/upload-artifact@v3
+      uses: actions/upload-artifact@v4
       with:
         name: deb-package
         path: ./target/pack/${{ env.folder }}.deb
@@ -190,10 +204,10 @@ jobs:
       contents: write
 
     steps:
-    - uses: actions/checkout@v3
+    - uses: actions/checkout@v6
 
     - name: get individual packages
-      uses: actions/download-artifact@v3
+      uses: actions/download-artifact@v4
       with:
         path: ./target/pack/
 
