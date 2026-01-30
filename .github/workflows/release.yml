@@ -111,6 +111,10 @@ jobs:
 
     steps:
     - uses: actions/checkout@v6
+    - name: Install system dependencies
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y libfontconfig1-dev
     - name: build
       run: cargo build --release --target x86_64-unknown-linux-gnu
 
@@ -158,6 +162,10 @@ jobs:
 
     steps:
     - uses: actions/checkout@v6
+    - name: Install system dependencies
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y libfontconfig1-dev
     - name: build
       run: cargo build --release --target x86_64-unknown-linux-gnu
 
