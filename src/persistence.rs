@@ -15,6 +15,7 @@ pub enum PersistentValue {
     Layout(Layout),
     WorkspaceTemplate(WorkspaceTemplate),
     ImageFormat(ImageFormat),
+    Bool(bool),
 }
 
 impl PersistentValue {
@@ -83,9 +84,15 @@ impl From<ImageFormat> for PersistentValue {
         Self::ImageFormat(value)
     }
 }
+impl From<bool> for PersistentValue {
+    fn from(value: bool) -> Self {
+        Self::Bool(value)
+    }
+}
 
 pub trait PersistentKey {
     fn get_id(&self) -> &str;
+    #[allow(dead_code)]
     fn with_id(&self, other: &impl PersistentKey) -> String {
         format!("{}-{}", self.get_id(), other.get_id())
     }

@@ -296,7 +296,7 @@ impl Browser {
             }
         }
     }
-    pub fn view(&self) -> Element<BrowserOperation, Renderer> {
+    pub fn view(&self) -> Element<'_, BrowserOperation, Renderer> {
         // calculating file list widgets
         let file_list = self
             .dir

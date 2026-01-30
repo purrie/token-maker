@@ -39,6 +39,10 @@ pub struct ProgramData {
     layout: Layout,
     /// Which template new workspaces should use
     new_workspace_template: WorkspaceTemplate,
+    /// Determines whatever to create a token workspace when no workspaces exist yet
+    pub create_token_workspace: bool,
+    /// Determines whatever to create a portrait workspace when no workspaces exist yet
+    pub create_portrait_workspace: bool,
 }
 
 /// Messages for customizing the program settings
@@ -89,6 +93,12 @@ impl ProgramData {
                 }
             })
             .unwrap_or_default();
+        let create_portrait_workspace = cache.get_copy(PersistentData::SettingsID, PersistentData::TemplatePortrait).and_then(|x| {
+            if let PersistentValue::Bool(v) = x { Some(v) } else { Some(true) }
+        }).unwrap_or(true);
+        let create_token_workspace = cache.get_copy(PersistentData::SettingsID, PersistentData::TemplateToken).and_then(|x| {
+            if let PersistentValue::Bool(v) = x { Some(v) } else { Some(true) }
+        }).unwrap_or(true);
 
         Self {
             file,
@@ -100,10 +110,12 @@ impl ProgramData {
             naming,
             cache,
             new_workspace_template,
+            create_portrait_workspace,
+            create_token_workspace,
         }
     }
     /// Draws UI for customizing program settings
-    pub fn view(&self) -> Element<ProgramDataMessage, Renderer> {
+    pub fn view(&self) -> Element<'_, ProgramDataMessage, Renderer> {
         let theme = row![
             text("Theme: "),
             radio("Light", Theme::Light, Some(self.theme), |x| {
@@ -285,6 +297,8 @@ impl Drop for ProgramData {
             PersistentData::Folder,
             PersistentValue::String(path),
         );
+        self.cache.set(PersistentData::SettingsID, PersistentData::TemplateToken, PersistentValue::Bool(self.create_token_workspace));
+        self.cache.set(PersistentData::SettingsID, PersistentData::TemplatePortrait, PersistentValue::Bool(self.create_portrait_workspace));
     }
 }
 
@@ -316,9 +330,9 @@ pub struct WorkspaceData {
 }
 
 impl WorkspaceData {
-    pub fn new(image: Arc<RgbaImage>, name: String, pdata: &ProgramData) -> Self {
+    pub fn new(image: Arc<RgbaImage>, name: String, pdata: &ProgramData, template: WorkspaceTemplate) -> Self {
         Self {
-            export_size: match pdata.get_workspace_template() {
+            export_size: match template {
                 WorkspaceTemplate::Portrait => Size {
                     width: image.width(),
                     height: image.height(),
@@ -343,8 +357,8 @@ impl WorkspaceData {
                         None
                     }
                 })
-                .unwrap_or(ImageFormat::WebP),
-            template: pdata.get_workspace_template(),
+                .unwrap_or(ImageFormat::Png),
+            template,
             source_preview: image_arc_to_handle(&image),
             image_result: image_arc_to_handle(&image),
             source: image,
@@ -395,7 +409,7 @@ macro_rules! save_data_path {
             d
     }}
 }
-pub(crate) use save_data_path;
+// pub(crate) use save_data_path;
 
 /// Path where it is expected to save the frames to
 macro_rules! save_frames_path {
@@ -406,7 +420,7 @@ macro_rules! save_frames_path {
         save_data_path!(PROJECT_FRAMES_FOLDER, $($path), +)
     }};
 }
-pub(crate) use save_frames_path;
+// pub(crate) use save_frames_path;
 
 /// All the paths program can store any data to load from
 macro_rules! load_data_path {
@@ -442,7 +456,7 @@ macro_rules! load_data_path {
         ]
     }
 }
-pub(crate) use load_data_path;
+// pub(crate) use load_data_path;
 
 /// All the paths the program searches to load data from
 macro_rules! load_frames_path {
@@ -453,7 +467,7 @@ macro_rules! load_frames_path {
         load_data_path!(PROJECT_FRAMES_FOLDER, $($path)+)
     };
 }
-pub(crate) use load_frames_path;
+// pub(crate) use load_frames_path;
 
 /// Removes any character from the string that could be problematic for use in file names.
 ///
@@ -722,6 +736,8 @@ enum PersistentData {
     Output,
     Folder,
     WorkspaceTemplate,
+    TemplateToken,
+    TemplatePortrait,
 }
 
 impl PersistentKey for PersistentData {
@@ -736,6 +752,8 @@ impl PersistentKey for PersistentData {
             PersistentData::WorkspaceID => "workspace",
             PersistentData::Format => "format",
             PersistentData::WorkspaceTemplate => "template",
+            PersistentData::TemplateToken => "template-token",
+            PersistentData::TemplatePortrait => "template-portrait",
         }
     }
 }

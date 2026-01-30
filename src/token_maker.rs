@@ -4,7 +4,7 @@ use std::sync::Arc;
 use iced::widget::tooltip::Position;
 use iced::widget::{
     button, column as col, container, horizontal_space, image as picture, radio, row, text,
-    text_input, tooltip, vertical_space, Row,
+    text_input, tooltip, vertical_space, Row, toggler,
 };
 use iced::{
     executor, Alignment, Application, Command, ContentFit, Element, Length, Renderer, Subscription,
@@ -65,6 +65,8 @@ pub enum Message {
     WorkspaceNewFromSource(usize),
     /// Sets default workspace template to use for new workspaces
     WorkspaceTemplate(WorkspaceTemplate),
+    /// Toggles which workspace template should be created when first workspaces are added.
+    ToggleWorkspaceTemplate(WorkspaceTemplate, bool),
     /// Message related to program settings
     SettingsMessage(ProgramDataMessage),
     /// Result of a task which loads in all the frames
@@ -392,6 +394,14 @@ impl Application for TokenMaker {
                 self.data.set_workspace_template(t);
                 Command::none()
             }
+            Message::ToggleWorkspaceTemplate(t, enabled) => {
+                match t {
+                    WorkspaceTemplate::None => unreachable!(),
+                    WorkspaceTemplate::Token => self.data.create_token_workspace = enabled,
+                    WorkspaceTemplate::Portrait => self.data.create_portrait_workspace = enabled,
+                }
+                Command::none()
+            }
 
             Message::LoadedFrames(frames) => {
                 self.data.available_frames = frames;
@@ -491,6 +501,15 @@ impl TokenMaker {
         }
     }
 
+    fn push_new_workspace(&mut self, template: WorkspaceTemplate, image: Arc<RgbaImage>) -> Command<Message> {
+        let workspace_idx = self.workspaces.len();
+        let name = self.data.naming.get(&template);
+        let (command, new_workspace) = Workspace::new(name, image, &self.data, template);
+        let command = command.map(move |x| Message::Workspace(workspace_idx, x));
+        self.workspaces.push(new_workspace);
+        command
+    }
+
     /// This function adds a new workspace with given data
     fn add_workspace(&mut self, name: String, image: Arc<RgbaImage>) -> Command<Message> {
         let i = self.workspaces.len();
@@ -498,16 +517,26 @@ impl TokenMaker {
         if i == 0 && self.data.naming.project_name.len() == 0 {
             self.data.naming.project_name = name;
         }
-        let name = self.data.naming.get(&self.data.get_workspace_template());
-
-        let (command, new_workspace) = Workspace::new(name, image, &self.data);
-        let command = command.map(move |x| Message::Workspace(i, x));
+        let command = if i == 0 {
+            let mut commands = Vec::new();
+            if self.data.create_portrait_workspace {
+                let command = self.push_new_workspace(WorkspaceTemplate::Portrait, image.clone());
+                commands.push(command);
+            }
+            if self.data.create_token_workspace {
+                let command = self.push_new_workspace(WorkspaceTemplate::Token, image.clone());
+                commands.push(command);
+            }
+            Command::batch(commands)
+        } else {
+            let template = self.data.get_workspace_template();
+            self.push_new_workspace(template, image)
+        };
 
         // Switching to a new tab if the layout is stacking
         if matches!(self.data.get_layout(), Layout::Stacking(_)) {
             self.data.set_layout(Layout::Stacking(i))
         }
-        self.workspaces.push(new_workspace);
         command
     }
 
@@ -539,7 +568,7 @@ impl TokenMaker {
     }
 
     /// Main program UI located at the top of the window
-    fn top_bar(&self) -> Element<Message, Renderer> {
+    fn top_bar(&self) -> Element<'_, Message, Renderer> {
         let left = match self.operation {
             Mode::Workspace => row![
                 text("Workspace: "),
@@ -665,12 +694,12 @@ impl TokenMaker {
     }
 
     /// Constructs UI for customizing program settings
-    fn settings_view(&self) -> Element<Message, Renderer> {
+    fn settings_view(&self) -> Element<'_, Message, Renderer> {
         self.data.view().map(|x| Message::SettingsMessage(x))
     }
 
     /// Constructs UI for displaying all workspaces
-    fn workspace_view(&self) -> Element<Message, Renderer> {
+    fn workspace_view(&self) -> Element<'_, Message, Renderer> {
         // Different drawings for different layouts
         match self.data.get_layout() {
             Layout::Parallel => {
@@ -704,7 +733,7 @@ impl TokenMaker {
         .into()
     }
 
-    fn download_in_progress_view(&self) -> Element<Message, Renderer> {
+    fn download_in_progress_view(&self) -> Element<'_, Message, Renderer> {
         let content = row![
             horizontal_space(Length::Fill),
             container(text("Loading..."))
@@ -722,7 +751,7 @@ impl TokenMaker {
             .into()
     }
 
-    fn swap_source_image_view(&self) -> Element<Message, Renderer> {
+    fn swap_source_image_view(&self) -> Element<'_, Message, Renderer> {
         if self.download_in_progress {
             return self.download_in_progress_view();
         }
@@ -750,7 +779,7 @@ impl TokenMaker {
         .into()
     }
 
-    fn workspace_close_view(&self) -> Element<Message, Renderer> {
+    fn workspace_close_view(&self) -> Element<'_, Message, Renderer> {
         let views = self
             .workspaces
             .iter()
@@ -787,25 +816,38 @@ impl TokenMaker {
     }
 
     /// Constructs UI for creating a new workspace
-    fn workspace_add_view(&self) -> Element<Message, Renderer> {
+    fn workspace_add_view(&self) -> Element<'_, Message, Renderer> {
         if self.download_in_progress {
             return self.download_in_progress_view();
         }
-        let templates = WorkspaceTemplate::ALL.iter().fold(
-            row![text("Template:")]
-                .spacing(10)
-                .align_items(Alignment::Center),
-            |r, wt| {
-                let wt = *wt;
-                let opt = radio(
-                    wt.to_string(),
-                    wt,
-                    Some(self.data.get_workspace_template()),
-                    |x| Message::WorkspaceTemplate(x),
-                );
-                r.push(opt)
-            },
-        );
+        let templates = if self.workspaces.len() == 0 {
+            let templates = col![
+                    tooltip(
+                        toggler(String::from("Token"), self.data.create_token_workspace, |x| Message::ToggleWorkspaceTemplate(WorkspaceTemplate::Token, x)),
+                        "Create workspace for a token", Position::Top),
+                    tooltip(
+                        toggler(String::from("Portrait"), self.data.create_portrait_workspace, |x| Message::ToggleWorkspaceTemplate(WorkspaceTemplate::Portrait, x)),
+                        "Create workspace for a portrait", Position::Bottom),
+            ].spacing(5).align_items(Alignment::Center);
+            container(templates).style(Style::Frame).padding(20).width(Length::Fixed(300.))
+        } else {
+            let templates = WorkspaceTemplate::ALL.iter().fold(
+                row![text("Template:")]
+                    .spacing(10)
+                    .align_items(Alignment::Center),
+                |r, wt| {
+                    let wt = *wt;
+                    let opt = radio(
+                        wt.to_string(),
+                        wt,
+                        Some(self.data.get_workspace_template()),
+                        |x| Message::WorkspaceTemplate(x),
+                    );
+                    r.push(opt)
+                },
+            );
+            container(templates).style(Style::Frame).padding(20)
+        };
 
         let openers = row![
             tooltip(
@@ -823,7 +865,6 @@ impl TokenMaker {
         ]
         .spacing(5);
 
-        let templates = container(templates).style(Style::Frame).padding(20);
         let openers = container(openers).style(Style::Frame).padding(20);
 
         let ui = if self.workspaces.len() > 0 {

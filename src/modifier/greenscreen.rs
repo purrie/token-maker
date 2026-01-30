@@ -136,7 +136,7 @@ impl<'a> Modifier<'a> for Greenscreen {
         &'a self,
         _pdata: &'a crate::data::ProgramData,
         _wdata: &'a crate::data::WorkspaceData,
-    ) -> Option<iced::Element<Self::Message, iced::Renderer>> {
+    ) -> Option<iced::Element<'a, Self::Message, iced::Renderer>> {
         let picker = ColorPicker::new(self.color, |x| GreenscreenMessage::SetColor(x))
             .width(26)
             .height(26);
@@ -196,7 +196,7 @@ impl<'a> Modifier<'a> for Greenscreen {
         &'a self,
         _pdata: &'a crate::data::ProgramData,
         wdata: &'a crate::data::WorkspaceData,
-    ) -> iced::Element<Self::Message, iced::Renderer> {
+    ) -> iced::Element<'a, Self::Message, iced::Renderer> {
         let picker = PixelSampler::new(wdata.source_preview.clone(), |x| {
             GreenscreenMessage::SetSample(x)
         });

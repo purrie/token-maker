@@ -95,11 +95,12 @@ impl Workspace {
         name: String,
         source: Arc<RgbaImage>,
         pdata: &ProgramData,
+        template: WorkspaceTemplate,
     ) -> (Command<WorkspaceMessage>, Self) {
-        let data = WorkspaceData::new(source, name, pdata);
+        let data = WorkspaceData::new(source, name, pdata, template);
         let mut modifiers = Vec::new();
 
-        let command = match pdata.get_workspace_template() {
+        let command = match template {
             WorkspaceTemplate::None | WorkspaceTemplate::Portrait => Command::none(),
             WorkspaceTemplate::Token => {
                 let (command, frame) = ModifierTag::Frame.make_box(pdata, &data);

@@ -31,7 +31,7 @@ impl StatusBar {
         self.current_line = Status::Warning(text.to_string());
     }
 
-    pub fn view(&self) -> Element<(), Renderer> {
+    pub fn view(&self) -> Element<'_, (), Renderer> {
         let t = match &self.current_line {
             Status::None => "",
             Status::Log(l) => l,

@@ -207,7 +207,7 @@ impl<'a> Modifier<'a> for Frame {
         &self,
         _pdata: &ProgramData,
         _wdata: &WorkspaceData,
-    ) -> Option<iced::Element<Self::Message, iced::Renderer>> {
+    ) -> Option<iced::Element<'a, Self::Message, iced::Renderer>> {
         Some(
             col![
                 button("Select Frame").on_press(FrameMessage::OpenFrameSelect),
@@ -233,7 +233,7 @@ impl<'a> Modifier<'a> for Frame {
         &self,
         pdata: &ProgramData,
         _wdata: &WorkspaceData,
-    ) -> iced::Element<Self::Message, iced::Renderer> {
+    ) -> iced::Element<'a, Self::Message, iced::Renderer> {
         // Images column is there to store all the frame buttons
         let mut images = col![]
             .align_items(iced::Alignment::Center)

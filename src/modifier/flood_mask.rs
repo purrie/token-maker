@@ -109,7 +109,7 @@ impl<'a> Modifier<'a> for FloodMask {
         &'a self,
         _pdata: &'a crate::data::ProgramData,
         _wdata: &'a crate::data::WorkspaceData,
-    ) -> Option<iced::Element<Self::Message, iced::Renderer>> {
+    ) -> Option<iced::Element<'a, Self::Message, iced::Renderer>> {
         let butt = if self.picking_pixel {
             button("Cancel picking")
                 .on_press(FloodMaskMessage::StopPicking)
@@ -170,7 +170,7 @@ impl<'a> Modifier<'a> for FloodMask {
         &'a self,
         _pdata: &'a crate::data::ProgramData,
         wdata: &'a crate::data::WorkspaceData,
-    ) -> iced::Element<Self::Message, iced::Renderer> {
+    ) -> iced::Element<'a, Self::Message, iced::Renderer> {
         PixelSampler::new(wdata.source_preview.clone(), |x| {
             FloodMaskMessage::Picked(Point {
                 x: x.x as f32,

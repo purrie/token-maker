@@ -50,7 +50,7 @@ pub trait Modifier<'a> {
         &'a self,
         pdata: &'a ProgramData,
         wdata: &'a WorkspaceData,
-    ) -> Element<Self::Message, Renderer> {
+    ) -> Element<'a, Self::Message, Renderer> {
         iced::widget::image(wdata.image_result.clone()).into()
     }
 
@@ -68,7 +68,7 @@ pub trait Modifier<'a> {
         &'a self,
         pdata: &'a ProgramData,
         wdata: &'a WorkspaceData,
-    ) -> Option<Element<Self::Message, Renderer>> {
+    ) -> Option<Element<'a, Self::Message, Renderer>> {
         None
     }
 
@@ -180,7 +180,7 @@ macro_rules! make_modifier {
                 }
             }
             /// UI for modifier properties
-            pub fn properties_view<'a>(&'a self, pdata: &'a ProgramData, wdata: &'a WorkspaceData) -> Option<Element<ModifierMessage, Renderer>> {
+            pub fn properties_view<'a>(&'a self, pdata: &'a ProgramData, wdata: &'a WorkspaceData) -> Option<Element<'a, ModifierMessage, Renderer>> {
                 match self {
                     $(
                         ModifierBox::$md(x) => match x.properties_view(pdata, wdata) {
@@ -207,7 +207,7 @@ macro_rules! make_modifier {
                 }
             }
             /// UI for the main screen of the workspace for when the modifier needs larger space for specific tasks
-            pub fn main_view<'a>(&'a self, pdata: &'a ProgramData, wdata: &'a WorkspaceData) -> Element<ModifierMessage, Renderer> {
+            pub fn main_view<'a>(&'a self, pdata: &'a ProgramData, wdata: &'a WorkspaceData) -> Element<'a, ModifierMessage, Renderer> {
                 match self {
                     $(
                         ModifierBox::$md(x) => x.main_view(pdata, wdata).map(|x| x.into()),

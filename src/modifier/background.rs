@@ -284,7 +284,7 @@ impl<'a> Modifier<'a> for Background {
         &self,
         _pdata: &crate::data::ProgramData,
         _wdata: &crate::data::WorkspaceData,
-    ) -> Option<iced::Element<Self::Message, iced::Renderer>> {
+    ) -> Option<iced::Element<'a, Self::Message, iced::Renderer>> {
         let modes = col![
             radio("Color", BackgroundType::Solid, Some(self.background), |x| {
                 BackgroundMessage::SetMode(x)
@@ -339,7 +339,7 @@ impl<'a> Modifier<'a> for Background {
         &'a self,
         pdata: &'a crate::data::ProgramData,
         _wdata: &'a crate::data::WorkspaceData,
-    ) -> iced::Element<Self::Message, iced::Renderer> {
+    ) -> iced::Element<'a, Self::Message, iced::Renderer> {
         if self.browsing {
             return pdata.file.view().map(|x| BackgroundMessage::Browser(x));
         }

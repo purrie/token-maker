@@ -101,7 +101,7 @@ impl FrameMaker {
     }
 
     /// Constructs UI for the editor
-    pub fn view(&self, _pdata: &ProgramData) -> Element<FrameMakerMessage, Renderer> {
+    pub fn view(&self, _pdata: &ProgramData) -> Element<'_, FrameMakerMessage, Renderer> {
         let name = row![
             text("Name: "),
             text_input(
